@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>myFlix API</title>
+  </head>
+
+  <body>
+    <h1>myFlix API</h1>
+
+    <p>This web application provides users with access to information about 
+        different movies, directors, and genres. Users will be able to sign up, 
+        update their personal information, and create a list of their favorite movies.
+    </p>
+
+    <table>
+      <tr>
+        <th>Request</th>
+        <th>URL</th>
+        <th>Request Parameter</th>
+        <th>HTTP Method</th>
+        <th>Request body data format</th>
+        <th>Response body data format</th>
+      </tr>
+      <tr>
+        <td>Returns a list of all movies to the user</td>
+        <td>"/movies"</td>
+        <td>none</td>
+        <td>GET</td>
+        <td>none</td>
+        <td>
+          A JSON object with a list of all the movies <br />
+          Example: <br />
+          {<br />
+            Title: "exampleTitle", <br />
+            Description: "movie description...", <br />
+            Director: { <br />
+              Name: "directorName", <br />
+              Bio: "bio description"... <br />
+            },...<br /> 
+          } 
+        </td>
+      </tr>
+      <tr>
+        <td>Returns data about a single movie by title to the user</td>
+        <td>"/movies/:title"</td>
+        <td>:title</td>
+        <td>GET</td>
+        <td>none</td>
+        <td>
+          A JSON object with data about a single movie <br />
+          Example: <br />
+          {<br />
+            Title: "exampleTitle", <br />
+            Description: "movie description...", <br />
+            Director: { <br />
+              Name: "directorName", <br />
+              Bio: "bio description"... <br />
+            },...<br /> 
+          }        
+        </td>
+      </tr>
+      <tr>
+        <td>Returns data about a genre by name</td>
+        <td>"/movies/genres/:genre"</td>
+        <td>:genre</td>
+        <td>GET</td>
+        <td>none</td>
+        <td>
+          A JSON object with data about a genre <br />
+          Example: { <br />
+            "Comedy is a genre of film in which the main emphasis is on humor. These films..." <br />
+          }
+        </td>
+      </tr>
+      <tr>
+        <td>Returns movies an actor is in by actor's name</td>
+        <td>"/movies/actors/:actor"</td>
+        <td>:actor</td>
+        <td>GET</td>
+        <td>none</td>
+        <td>
+          A JSON object with data about a single movie <br />
+          Example: <br />
+          {<br />
+            Title: "exampleTitle", <br />
+            Description: "movie description...", <br />
+            Director: { <br />
+              Name: "directorName", <br />
+              Bio: "bio description"... <br />
+            },...<br /> 
+          }
+        </td>
+      </tr>
+      <tr>
+        <td>Returns details about a director by name</td>
+        <td>"/movies/directors/:director"</td>
+        <td>:director</td>
+        <td>GET</td>
+        <td>none</td>
+        <td>
+          A JSON object with details about a director <br />
+          Exmple:<br /> 
+          {<br />
+            "Name": "Wes Anderson",<br />
+            "Bio": "UPDATE: His new-age style is one to remember. Focused on cinematography and dialog!",<br />
+            "Birth": "1969-05-01T00:00:00.000Z"<br />
+        }
+        </td>
+      </tr>
+      <tr>
+        <td>Allows new users to register</td>
+        <td>"/users"</td>
+        <td>none</td>
+        <td>POST</td>
+        <td>
+            JSON object with data about the user to add <br />
+            Example:<br />   
+            { <br />    
+            "Username": "username3498",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            }
+        <td>
+          JSON object with data about added new user <br />
+          Example: <br />
+          {<br />
+            "_id": "xxxx5555",<br />
+            "Username": "username3498",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            "Birthday": "1965-03-01",<br />
+            "FavoriteMovies": [],<br />
+            "ToWatch": []<br />
+        },
+        </td>
+      </tr>
+
+      <tr>
+        <td>Allows users to update their info</td>
+        <td>"/users/:Username"</td>
+        <td>:Username</td>
+        <td>PUT</td>
+        <td>JSON object with data to be updated about user <br />
+          Example: <br />
+          {<br />
+            "Username": "usernameUPDATE",<br />
+        </td>
+        <td> JSON object with updated data of user <br />
+          Example: <br />
+          {<br />
+            "_id": "xxxx5555",<br />
+            "Username": "usernameUPDATE",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            "Birthday": "1965-03-01",<br />
+            "FavoriteMovies": [],<br />
+            "ToWatch": []<br />
+          },
+      </td>
+      </tr>
+      <tr>
+        <td>Allows users to add a movie to their Favorites list</td>
+        <td>"/users/:Username/favorites/:movieID"</td>
+        <td>:Username, :movieID</td>
+        <td>POST</td>
+        <td>none</td>
+        <td> JSON object with updated user Favortie List <br />
+          Example: <br />
+          {<br />
+            "_id": "xxxx5555",<br />
+            "Username": "usernameUPDATE",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            "Birthday": "1965-03-01",<br />
+            "FavoriteMovies": [ 6213f8958500dfa6c23af253 ],<br />
+            "ToWatch": []<br />
+          },
+        </td>
+      </tr>
+      <tr>
+        <td>Allows users to remove a movie from their Favorites list</td>
+        <td>"/users/:Username/favorites/:movieID"</td>
+        <td>:Username, :movieID</td>
+        <td>DELETE</td>
+        <td>none</td>
+        <td> JSON object with updated user Favortie List <br />
+          Example: <br />
+          {<br />
+            "_id": "xxxx5555",<br />
+            "Username": "usernameUPDATE",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            "Birthday": "1965-03-01",<br />
+            "FavoriteMovies": [],<br />
+            "ToWatch": []<br />
+          },
+        </td>
+      </tr>
+      <tr>
+        <td>Allows users to add a movie to their To Watch list</td>
+        <td>"/users/:id/ToWatch/:movieID"</td>
+        <td>:Username, :movieID</td>
+        <td>POST</td>
+        <td>none</td>
+        <td> JSON object with updated user To Watch list <br />
+          Example: <br />
+          {<br />
+            "_id": "xxxx5555",<br />
+            "Username": "usernameUPDATE",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            "Birthday": "1965-03-01",<br />
+            "FavoriteMovies": [],<br />
+            "ToWatch": [ 6213f8958500dfa6c23af253 ]<br />
+          },
+        </td>
+      </tr>
+      <tr>
+        <td>Allows users to remove a movie from their To Watch list</td>
+        <td>"/users/:id/ToWatch/:movieID"</td>
+        <td>:Username, :movieID</td>
+        <td>DELETE</td>
+        <td>none</td>
+        <td> JSON object with updated user To Watch list <br />
+          Example: <br />
+          {<br />
+            "_id": "xxxx5555",<br />
+            "Username": "usernameUPDATE",<br />
+            "Password": "password1",<br />
+            "Email": "username_mail3@gmail.com",<br />
+            "Birthday": "1965-03-01",<br />
+            "FavoriteMovies": [],<br />
+            "ToWatch": []<br />
+          },
+        </td>
+      </tr>
+      <tr>
+        <td>Allows existing users to deregister</td>
+        <td>"/users/:Username"</td>
+        <td>:Username</td>
+        <td>DELETE</td>
+        <td>none</td>
+        <td>A text message indicating that the user has been deleted.
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

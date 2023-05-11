@@ -327,7 +327,7 @@ app.get(
 );
 
 /**
- * GET: Returns data about a director (bio, birth year, death year) by name
+ * GET: Returns data about a  (bio, birth year, death year) by name
  * Request body: Bearer token
  * @param director (name of director)
  * @returns director object

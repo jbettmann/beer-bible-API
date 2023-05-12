@@ -15,11 +15,13 @@ const userSchema = mongoose.Schema({
 // brewery schema
 const brewerySchema = mongoose.Schema({
   companyName: { type: String, required: true },
-  owner: { type: String, required: true },
-  admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  beers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Beer" }],
-  categories: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+  staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+  beers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Beer", default: [] }],
+  categories: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
+  ],
 });
 
 // beer schema

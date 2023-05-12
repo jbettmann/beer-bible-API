@@ -25,6 +25,7 @@ const beerSchema = mongoose.Schema({
   name: { type: String, required: true },
   style: { type: String, required: true },
   abv: Number,
+  ibu: Number,
   category: [String],
   malt: [String],
   hops: [String],

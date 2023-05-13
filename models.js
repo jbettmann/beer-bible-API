@@ -92,7 +92,7 @@ userSchema.statics.hashPassword = (password) => {
 
 // Function compares submitted hashed password with hashed password stored in database
 userSchema.methods.validatePassword = function (password) {
-  return bcrypt.compareSync(password, this.Password);
+  return bcrypt.compareSync(password, this.password);
 };
 
 // Creation for db, will come out lowercase and plurals. eg. db.beers

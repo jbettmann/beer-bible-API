@@ -8,9 +8,9 @@ const express = require("express"),
 
 mongoose.set("strictQuery", true); // handles undefined paths
 
-const AWS = require("aws-sdk");
+const { SES } = require("@aws-sdk/client-ses");
 // Load AWS SES
-const ses = new AWS.SES({ apiVersion: "2010-12-01" });
+const ses = new SES({ apiVersion: "2010-12-01" });
 
 const { check, validationResult } = require("express-validator");
 
@@ -92,68 +92,72 @@ let handleError = (res, err) => {
  * Request body: Bearer token, JSON with user information & email to invitee required!
  * @returns Invitation accepted message
  */
-app.post("/breweries/:breweryId/invite", async (req, res) => {
-  try {
-    const breweryId = req.params.breweryId;
-    const { email } = req.body; // email of the user to be invited
+app.post(
+  "/breweries/:breweryId/invite",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const breweryId = req.params.breweryId;
+      const { email } = req.body; // email of the user to be invited
 
-    // Fetch the brewery from the database
-    const brewery = await Brewery.findById(breweryId);
-    if (!brewery) {
-      return res.status(404).json({ message: "Brewery not found." });
-    }
+      // Fetch the brewery from the database
+      const brewery = await Breweries.findById(breweryId);
+      if (!brewery) {
+        return res.status(404).json({ message: "Brewery not found." });
+      }
 
-    // Generate a random token and create an invite record in the database
-    const token = crypto.randomBytes(16).toString("hex");
-    const invite = await new Invites({
-      token,
-      brewery: breweryId,
-      sender: req.user._id,
-    }).save();
+      // Generate a random token and create an invite record in the database
+      const token = crypto.randomBytes(16).toString("hex");
+      const invite = await new Invites({
+        token,
+        brewery: breweryId,
+        sender: req.user._id,
+      }).save();
 
-    // Send email here
-    const inviteUrl = `http://your-app.com/accept-invite?token=${token}`;
+      // Send email here
+      const inviteUrl = `http://your-app.com/accept-invite?token=${token}`;
 
-    // Specify email parameters
-    const emailParams = {
-      Destination: {
-        /* required */ ToAddresses: [email],
-      },
-      Message: {
-        /* required */
-        Body: {
+      // Specify email parameters
+      const emailParams = {
+        Destination: {
+          /* required */ ToAddresses: [email],
+        },
+        Message: {
           /* required */
-          Text: {
+          Body: {
+            /* required */
+            Text: {
+              Charset: "UTF-8",
+              Data: `You have been invited to join ${brewery.companyName}! Click the link to join: ${inviteUrl}`,
+            },
+          },
+          Subject: {
             Charset: "UTF-8",
-            Data: `You have been invited to join ${brewery.companyName}! Click the link to join: ${inviteUrl}`,
+            Data: "Brewery Invitation",
           },
         },
-        Subject: {
-          Charset: "UTF-8",
-          Data: "Brewery Invitation",
-        },
-      },
-      Source: "your-email@example.com" /* required */,
-      ReplyToAddresses: ["your-email@example.com"],
-    };
+        Source: "hello@jordanbettmann.com" /* required */,
+        ReplyToAddresses: ["hello@jordanbettmann.com"],
+      };
 
-    // Create the promise and SES service object
-    const sendPromise = ses.sendEmail(emailParams).promise();
+      // Create the promise and SES service object
+      const sendPromise = ses.sendEmail(emailParams);
 
-    // Handle promise's fulfilled/rejected states
-    sendPromise
-      .then(function (data) {
-        console.log(data.MessageId);
-      })
-      .catch(function (err) {
-        console.error(err, err.stack);
-      });
+      // Handle promise's fulfilled/rejected states
+      sendPromise
+        .then(function (data) {
+          console.log(data.MessageId);
+        })
+        .catch(function (err) {
+          console.error(err, err.stack);
+        });
 
-    res.status(200).json({ message: "Invitation sent." });
-  } catch (error) {
-    handleError(res, error);
+      res.status(200).json({ message: "Invitation sent." });
+    } catch (error) {
+      handleError(res, error);
+    }
   }
-});
+);
 
 /**
  * POST: Accepting invitation. Adds brewery to users breweries and user to breweries staff;
@@ -173,11 +177,11 @@ app.post("/accept-invite", async (req, res) => {
     }
 
     // Add the user to the brewery's staff list and vice versa
-    const brewery = await Brewery.findById(invite.brewery);
+    const brewery = await Breweries.findById(invite.brewery);
     brewery.staff.push(req.user._id);
     await brewery.save();
 
-    const user = await User.findById(req.user._id);
+    const user = await Users.findById(req.user._id);
     user.breweries.push(brewery._id);
     await user.save();
 
@@ -323,7 +327,7 @@ app.post(
 app.post(
   "/:brewery/beers",
   [
-    // passport.authenticate("jwt", { session: false }),
+    passport.authenticate("jwt", { session: false }),
     // Validation logic
     //minimum value of 1 characters are only allowed
     check("name", "Beer name is required").isLength({ min: 1 }),
@@ -581,13 +585,13 @@ app.put(
     if (!errors.isEmpty()) {
       return res.status(422).json({ errors: errors.array() });
     }
-
+    const hashedPassword = Users.hashPassword(req.body.password);
     try {
       const userId = req.params.userId;
       const updateFields = {
         fullName: req.body.fullName,
         username: req.body.username,
-        password: req.body.password,
+        password: hashedPassword,
         email: req.body.email,
         breweries: req.body.breweries,
       };
@@ -618,7 +622,7 @@ app.put(
   "/:brewery/beers/:beerId",
   [
     // Validation logic
-    // passport.authenticate("jwt", { session: false }),
+    passport.authenticate("jwt", { session: false }),
     //minimum value of 5 characters are only allowed
     check("name", "Name is required").not().isEmpty(),
 
@@ -668,7 +672,7 @@ app.put(
   "/breweries/:breweryId",
   [
     // Validation logic
-    // passport.authenticate("jwt", { session: false }),
+    passport.authenticate("jwt", { session: false }),
     // Minimum value of 1 character is required
     check("companyName", "Company Name is required").isLength({ min: 1 }),
   ],
@@ -716,7 +720,7 @@ app.put(
  */
 app.delete(
   "/breweries/:brewery",
-  // passport.authenticate("jwt", { session: false }),
+  passport.authenticate("jwt", { session: false }),
   (req, res) => {
     Breweries.findOneAndRemove({ _id: req.params.brewery })
       .populate("companyName")

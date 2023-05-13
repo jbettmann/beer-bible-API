@@ -39,6 +39,18 @@ const beerSchema = mongoose.Schema({
   notes: String,
 });
 
+// invite schema
+const inviteSchema = mongoose.Schema({
+  token: { type: String, required: true },
+  brewery: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Brewery",
+    required: true,
+  },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  createdAt: { type: Date, required: true, default: Date.now, expires: "24h" },
+});
+
 // category schema
 const categorySchema = mongoose.Schema({
   name: { type: String, required: true },
@@ -88,6 +100,7 @@ const Beer = mongoose.model("Beer", beerSchema);
 const User = mongoose.model("User", userSchema);
 const Brewery = mongoose.model("Brewery", brewerySchema);
 const Category = mongoose.model("Category", categorySchema);
+const Invite = mongoose.model("Invite", inviteSchema);
 
 // Watch capital letters and plurals. Below will make db.movies and db.users
 let Movie = mongoose.model("Movie", movieSchema);
@@ -97,5 +110,6 @@ module.exports.Beer = Beer;
 module.exports.Brewery = Brewery;
 module.exports.Category = Category;
 module.exports.User = User;
+module.exports.Invite = Invite;
 
 module.exports.Movie = Movie;

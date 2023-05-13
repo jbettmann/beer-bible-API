@@ -6,13 +6,22 @@ const express = require("express"),
   Models = require("./models.js"), // allows access to database schema
   cors = require("cors"); // Cross-Orgin Resourse Sharing
 
+mongoose.set("strictQuery", true); // handles undefined paths
+
+const AWS = require("aws-sdk");
+// Load AWS SES
+const ses = new AWS.SES({ apiVersion: "2010-12-01" });
+
 const { check, validationResult } = require("express-validator");
+
+const crypto = require("crypto"); // Generate a random token for invite record
 
 // Refer to models named in models.js
 const Users = Models.User;
 const Beers = Models.Beer;
 const Breweries = Models.Brewery;
 const Categories = Models.Category;
+const Invites = Models.Invite;
 
 const Movies = Models.Movie;
 
@@ -76,7 +85,110 @@ let handleError = (res, err) => {
 
 // ************************** BeerBible API ************************************************
 
-//  POST/CREATE REQUEST
+//  POST/CREATE REQUEST ***************
+
+/**
+ * POST: Sending invitation. Adds brewery to users breweries and user to breweries staff;
+ * Request body: Bearer token, JSON with user information & email to invitee required!
+ * @returns Invitation accepted message
+ */
+app.post("/breweries/:breweryId/invite", async (req, res) => {
+  try {
+    const breweryId = req.params.breweryId;
+    const { email } = req.body; // email of the user to be invited
+
+    // Fetch the brewery from the database
+    const brewery = await Brewery.findById(breweryId);
+    if (!brewery) {
+      return res.status(404).json({ message: "Brewery not found." });
+    }
+
+    // Generate a random token and create an invite record in the database
+    const token = crypto.randomBytes(16).toString("hex");
+    const invite = await new Invites({
+      token,
+      brewery: breweryId,
+      sender: req.user._id,
+    }).save();
+
+    // Send email here
+    const inviteUrl = `http://your-app.com/accept-invite?token=${token}`;
+
+    // Specify email parameters
+    const emailParams = {
+      Destination: {
+        /* required */ ToAddresses: [email],
+      },
+      Message: {
+        /* required */
+        Body: {
+          /* required */
+          Text: {
+            Charset: "UTF-8",
+            Data: `You have been invited to join ${brewery.companyName}! Click the link to join: ${inviteUrl}`,
+          },
+        },
+        Subject: {
+          Charset: "UTF-8",
+          Data: "Brewery Invitation",
+        },
+      },
+      Source: "your-email@example.com" /* required */,
+      ReplyToAddresses: ["your-email@example.com"],
+    };
+
+    // Create the promise and SES service object
+    const sendPromise = ses.sendEmail(emailParams).promise();
+
+    // Handle promise's fulfilled/rejected states
+    sendPromise
+      .then(function (data) {
+        console.log(data.MessageId);
+      })
+      .catch(function (err) {
+        console.error(err, err.stack);
+      });
+
+    res.status(200).json({ message: "Invitation sent." });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+/**
+ * POST: Accepting invitation. Adds brewery to users breweries and user to breweries staff;
+ * Request body: Bearer token, JSON with user information
+ * @returns Invitation accepted message
+ */
+app.post("/accept-invite", async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    const invite = await Invites.findOne({ token });
+
+    if (!invite) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired invite token." });
+    }
+
+    // Add the user to the brewery's staff list and vice versa
+    const brewery = await Brewery.findById(invite.brewery);
+    brewery.staff.push(req.user._id);
+    await brewery.save();
+
+    const user = await User.findById(req.user._id);
+    user.breweries.push(brewery._id);
+    await user.save();
+
+    // Delete the invite from the database
+    await invite.remove();
+
+    res.status(200).json({ message: "Invitation accepted." });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
 
 /**
  * POST: Creates new user; Username, Password & Email are required fields!

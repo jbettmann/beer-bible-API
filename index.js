@@ -773,6 +773,31 @@ app.delete(
   }
 );
 
+/**
+ * DELETE: Deletes beer
+ * Request body: Bearer token
+ * @param beerId
+ * @returns success message
+ * @requires passport
+ */
+app.delete(
+  "/:breweryId/beers/:beerId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const beer = await Beers.findByIdAndDelete(req.params.beerId);
+
+      if (!beer) {
+        res.status(400).send(`Beer was not found.`);
+      } else {
+        res.status(200).send(`${beer.name} was deleted.`);
+      }
+    } catch {
+      handleError(res, error);
+    }
+  }
+);
+
 // ************************** myFlix Movie API ************************************************
 
 /**

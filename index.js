@@ -10,7 +10,7 @@ mongoose.set("strictQuery", true); // handles undefined paths
 
 const { SES } = require("@aws-sdk/client-ses");
 // Load AWS SES
-const ses = new SES({ apiVersion: "2010-12-01" });
+const ses = new SES({ apiVersion: "2010-12-01", region: "us-west-2" });
 
 const { check, validationResult } = require("express-validator");
 
@@ -99,6 +99,7 @@ app.post(
     try {
       const breweryId = req.params.breweryId;
       const { email } = req.body; // email of the user to be invited
+      console.log(email);
 
       // Fetch the brewery from the database
       const brewery = await Breweries.findById(breweryId);
@@ -115,7 +116,7 @@ app.post(
       }).save();
 
       // Send email here
-      const inviteUrl = `http://your-app.com/accept-invite?token=${token}`;
+      const inviteUrl = `http://localhost:8080/accept-invite?token=${token}`;
 
       // Specify email parameters
       const emailParams = {
@@ -164,35 +165,46 @@ app.post(
  * Request body: Bearer token, JSON with user information
  * @returns Invitation accepted message
  */
-app.post("/accept-invite", async (req, res) => {
-  try {
-    const { token } = req.body;
+app.post(
+  "/accept-invite",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const { token } = req.body;
 
-    const invite = await Invites.findOne({ token });
+      const invite = await Invites.findOne({ token });
 
-    if (!invite) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired invite token." });
+      if (!invite) {
+        return res
+          .status(400)
+          .json({ message: "Invalid or expired invite token." });
+      }
+
+      // Add the user to the brewery's staff list and vice versa
+      const brewery = await Breweries.findById(invite.brewery);
+      const user = await Users.findById(req.user._id);
+      const existingStaff = brewery.staff.includes(req.user._id);
+      console.log(existingStaff);
+      if (existingStaff) {
+        return res
+          .status(400)
+          .json({ message: `${user.email} already exists in brewery!` });
+      }
+      brewery.staff.push(req.user._id);
+      await brewery.save();
+
+      user.breweries.push(brewery._id);
+      await user.save();
+
+      // Delete the invite from the database
+      await invite.remove();
+
+      res.status(200).json({ message: "Invitation accepted." });
+    } catch (error) {
+      handleError(res, error);
     }
-
-    // Add the user to the brewery's staff list and vice versa
-    const brewery = await Breweries.findById(invite.brewery);
-    brewery.staff.push(req.user._id);
-    await brewery.save();
-
-    const user = await Users.findById(req.user._id);
-    user.breweries.push(brewery._id);
-    await user.save();
-
-    // Delete the invite from the database
-    await invite.remove();
-
-    res.status(200).json({ message: "Invitation accepted." });
-  } catch (error) {
-    handleError(res, error);
   }
-});
+);
 
 /**
  * POST: Creates new user; Username, Password & Email are required fields!
@@ -349,6 +361,7 @@ app.post(
       }
 
       const beer = new Beers({
+        companyId: req.params.brewery,
         name: req.body.name,
         style: req.body.style,
         abv: req.body.abv,
@@ -366,8 +379,6 @@ app.post(
       const savedBeer = await beer.save();
 
       if (savedBeer) {
-        brewery.beers.push(savedBeer._id);
-        await brewery.save();
         res.status(201).json({ savedBeer });
       } else {
         throw new Error("Beer save operation failed");
@@ -485,11 +496,29 @@ app.get(
  */
 app.get(
   "/breweries",
-  // passport.authenticate("jwt", { session: false }),
+  passport.authenticate("jwt", { session: false }),
   (req, res) => {
     Breweries.find() // .find() grabs data on all documents in collection
       .then((brewery) => {
         res.status(201).json(brewery);
+      })
+      .catch(handleError);
+  }
+);
+
+/**
+ * GET: Returns a list of ALL breweries beers
+ * Request body: Bearer token
+ * @returns array of beer objects
+ * @requires passport
+ */
+app.get(
+  "/:breweryId/beers",
+  passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    Beers.find({ companyId: req.params.breweryId }) // find my companyId
+      .then((beers) => {
+        res.status(201).json(beers);
       })
       .catch(handleError);
   }
@@ -619,7 +648,7 @@ app.put(
  * @requires passport
  */
 app.put(
-  "/:brewery/beers/:beerId",
+  "/:breweryId/beers/:beerId",
   [
     // Validation logic
     passport.authenticate("jwt", { session: false }),
@@ -637,8 +666,17 @@ app.put(
 
     try {
       const beerId = req.params.beerId;
+      const breweryId = req.params.breweryId;
+
+      const beer = await Beers.findById(beerId);
+      if (!beer || beer.companyId.toString() !== breweryId) {
+        return res
+          .status(400)
+          .send("Beer not found or does not belong to this brewery");
+      }
 
       const updateFields = {
+        companyId: breweryId,
         name: req.body.name,
         style: req.body.style,
         abv: req.body.abv,

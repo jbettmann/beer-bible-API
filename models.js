@@ -18,7 +18,6 @@ const brewerySchema = mongoose.Schema({
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
   staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
-  beers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Beer", default: [] }],
   categories: [
     { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
   ],
@@ -26,6 +25,12 @@ const brewerySchema = mongoose.Schema({
 
 // beer schema
 const beerSchema = mongoose.Schema({
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Brewery",
+    required: true,
+    index: true, // increases read performance but decreases write/update/delete
+  },
   name: { type: String, required: true },
   style: { type: String, required: true },
   abv: Number,

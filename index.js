@@ -272,7 +272,7 @@ app.post(
  * @returns brewery object
  */
 app.post(
-  "/:user/breweries",
+  "/users/:user/breweries",
   [
     // Validation logic
     //minimum value of 5 characters are only allowed
@@ -337,7 +337,7 @@ app.post(
  * @returns beer object
  */
 app.post(
-  "/:brewery/beers",
+  "/breweries/:brewery/beers",
   [
     passport.authenticate("jwt", { session: false }),
     // Validation logic
@@ -395,7 +395,7 @@ app.post(
  * @returns category object
  */
 app.post(
-  "/:brewery/categories",
+  "/breweries/:brewery/categories",
   [
     // passport.authenticate("jwt", { session: false }),
     // Validation logic
@@ -417,7 +417,7 @@ app.post(
       if (!brewery) {
         return res.status(400).send("Brewery not found");
       }
-      console.log(brewery);
+
       // Check if category already exists
       const existingCategory = brewery.categories.find(
         (category) => category.name === req.body.name
@@ -513,7 +513,7 @@ app.get(
  * @requires passport
  */
 app.get(
-  "/:breweryId/beers",
+  "/breweries/:breweryId/beers",
   passport.authenticate("jwt", { session: false }),
   (req, res) => {
     Beers.find({ companyId: req.params.breweryId }) // find my companyId
@@ -644,11 +644,12 @@ app.put(
  * PUT: Update beer info
  * Request body: Bearer token, updated beer info
  * @param beerId
+ * @param breweryId
  * @returns beer object with updates
  * @requires passport
  */
 app.put(
-  "/:breweryId/beers/:beerId",
+  "/breweries/:breweryId/beers/:beerId",
   [
     // Validation logic
     passport.authenticate("jwt", { session: false }),
@@ -676,7 +677,6 @@ app.put(
       }
 
       const updateFields = {
-        companyId: breweryId,
         name: req.body.name,
         style: req.body.style,
         abv: req.body.abv,
@@ -706,6 +706,13 @@ app.put(
   }
 );
 
+/**
+ * PUT: Update brewery info
+ * Request body: Bearer token, updated brewery info
+ * @param breweryId
+ * @returns brewery object with updates
+ * @requires passport
+ */
 app.put(
   "/breweries/:breweryId",
   [
@@ -724,24 +731,100 @@ app.put(
       const breweryId = req.params.breweryId;
       const updateFields = {
         companyName: req.body.companyName,
-        owner: req.body.owner,
         admin: req.body.admin,
         staff: req.body.staff,
-        beers: req.body.beers,
         categories: req.body.categories,
       };
 
-      const existingBrewery = await Breweries.findByIdAndUpdate(
-        breweryId,
-        updateFields,
-        { new: true }
-      );
+      const existingBrewery = await Breweries.findById(breweryId);
 
       if (!existingBrewery) {
         return res.status(400).send("Brewery not found");
       }
 
-      res.status(200).json({ existingBrewery });
+      const updatedBrewery = await Breweries.findByIdAndUpdate(
+        breweryId,
+        updateFields,
+        { new: true }
+      );
+
+      res.status(200).json({ updatedBrewery });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * PUT: Add an admin
+ * Request body: Bearer token
+ * @param breweryId
+ * @param userId
+ * @returns brewery object with updates
+ * @requires passport
+ */
+app.put(
+  "/breweries/:breweryId/admins/:userId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const breweryId = req.params.breweryId;
+      const userId = req.params.userId;
+
+      const brewery = await Breweries.findById(breweryId);
+      const user = await Users.findById(userId);
+
+      // Check if brewery and user exist
+      if (!brewery || !user) {
+        return res.status(400).json({ error: "Brewery or User not found" });
+      }
+
+      // Add user to admin array if not already present
+      await Breweries.findByIdAndUpdate(breweryId, {
+        $addToSet: { admin: userId },
+      });
+
+      res.status(200).json({ message: "Admin added successfully" });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * PUT: Update Brewery Owner
+ * Request body: Bearer token
+ * @param breweryId
+ * @param newOwnerId
+ * @returns brewery object with updates
+ * @requires passport
+ */
+app.put(
+  "/breweries/:breweryId/owner/:newOwnerId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    const breweryId = req.params.breweryId;
+    const newOwnerId = req.params.newOwnerId;
+
+    try {
+      const brewery = await Breweries.findById(breweryId);
+
+      // Check if brewery exists
+      if (!brewery) {
+        return res.status(400).json({ error: "Brewery not found" });
+      }
+
+      // Check if new owner is part of the staff
+      if (!brewery.staff.includes(newOwnerId)) {
+        return res
+          .status(400)
+          .json({ error: "New owner must be a member of the staff" });
+      }
+
+      // Update the brewery document
+      await Breweries.findByIdAndUpdate(breweryId, { owner: newOwnerId });
+
+      return res.status(200).json({ message: "Owner updated successfully" });
     } catch (error) {
       handleError(res, error);
     }
@@ -749,6 +832,56 @@ app.put(
 );
 
 //  DELETE REQUEST *****************
+
+/**
+ * DELETE: Deletes admin from breweries admin
+ * Request body: Bearer token
+ * @param breweryId
+ * @param userId
+ * @returns success message
+ * @requires passport
+ */
+app.delete(
+  "/breweries/:breweryId/admin/:userId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    const breweryId = req.params.breweryId;
+    const userId = req.params.userId;
+
+    try {
+      const brewery = await Breweries.findById(breweryId);
+
+      // Check if brewery exists
+      if (!brewery) {
+        return res.status(400).json({ error: "Brewery not found" });
+      }
+
+      // Check if user is an admin
+      if (!brewery.admin.includes(userId)) {
+        return res
+          .status(400)
+          .json({ error: "User is not an admin in this brewery" });
+      }
+
+      // Check if user is an owner
+      if (brewery.owner == userId) {
+        return res
+          .status(400)
+          .json({ error: "Owner can not be removed from admins" });
+      }
+
+      // Update the brewery document
+      await Breweries.findByIdAndUpdate(breweryId, {
+        $pull: { admin: userId },
+      });
+
+      return res.status(200).json({ message: "Admin removed successfully" });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
 /**
  * DELETE: Deletes brewery
  * Request body: Bearer token
@@ -760,6 +893,10 @@ app.delete(
   "/breweries/:brewery",
   passport.authenticate("jwt", { session: false }),
   (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
     Breweries.findOneAndRemove({ _id: req.params.brewery })
       .populate("companyName")
       .then((brewery) => {
@@ -776,14 +913,19 @@ app.delete(
 /**
  * DELETE: Deletes beer
  * Request body: Bearer token
+ * @param breweryId
  * @param beerId
  * @returns success message
  * @requires passport
  */
 app.delete(
-  "/:breweryId/beers/:beerId",
+  "/breweries/:breweryId/beers/:beerId",
   passport.authenticate("jwt", { session: false }),
   async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
     try {
       const beer = await Beers.findByIdAndDelete(req.params.beerId);
 
@@ -792,7 +934,161 @@ app.delete(
       } else {
         res.status(200).send(`${beer.name} was deleted.`);
       }
-    } catch {
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * DELETE: Deletes User from Breweries Staff array
+ * Request body: Bearer token
+ * @param breweryId
+ * @param userId
+ * @returns success message
+ * @requires passport
+ */
+app.delete(
+  "/breweries/:breweryId/staff/:userId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    const breweryId = req.params.breweryId;
+    const userId = req.params.userId;
+
+    try {
+      const brewery = await Breweries.findById(breweryId);
+      const user = await Users.findById(userId);
+
+      // Check if brewery exists
+      if (!brewery) {
+        return res.status(400).json({ error: "Brewery not found" });
+      }
+      // Check if User exists
+      if (!user) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      // Check if user is owner of brewery
+      if (brewery.owner.toString() === userId) {
+        return res
+          .status(400)
+          .json({ error: "Owner cannot be removed from staff" });
+      }
+
+      // Check if user is in the staff array
+      if (!brewery.staff.includes(userId)) {
+        return res
+          .status(400)
+          .json({ error: "Staff member not found in this brewery" });
+      }
+
+      // Update the brewery document
+      await Breweries.findByIdAndUpdate(breweryId, {
+        $pull: { staff: userId, admin: userId },
+      });
+
+      // Check if brewery is in users breweries array
+      if (!user.breweries.includes(breweryId)) {
+        return res
+          .status(400)
+          .json({ error: "Brewery not found in users breweries" });
+      }
+
+      // Update users breweries array
+      await Users.findByIdAndUpdate(userId, {
+        $pull: { breweries: breweryId },
+      });
+
+      return res
+        .status(200)
+        .json({ message: "Staff member removed successfully" });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * DELETE: Deletes Brewery from Users brewery array
+ * Request body: Bearer token
+ * @param userId
+ * @param breweryId
+ * @returns success message
+ * @requires passport
+ */
+app.delete(
+  "/users/:userId/breweries/:breweryId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    const userId = req.params.userId;
+    const breweryId = req.params.breweryId;
+
+    try {
+      const user = await Users.findById(userId);
+
+      // Check if user exists
+      if (!user) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      // Check if brewery is in user's breweries array
+      if (!user.breweries.includes(breweryId)) {
+        return res
+          .status(400)
+          .json({ error: "Brewery not found in user's breweries" });
+      }
+
+      // Update user's breweries array
+      await Users.findByIdAndUpdate(userId, {
+        $pull: { breweries: breweryId },
+      });
+
+      return res.status(200).json({
+        message: "Brewery removed successfully from user's breweries",
+      });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * DELETE: Deletes User account
+ * Request body: Bearer token
+ * @param userId
+ * @returns success message
+ * @requires passport
+ */
+app.delete(
+  "/users/:userId",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    const userId = req.params.userId;
+
+    try {
+      const user = await Users.findById(userId);
+
+      // Check if user exists
+      if (!user) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      // Check if user is an owner of any breweries
+      const breweries = await Breweries.find({ owner: userId });
+
+      if (breweries.length > 0) {
+        return res.status(400).json({
+          error: `${user.fullName} is an owner of ${breweries}. Please reassign ownership before deleting account.`,
+        });
+      }
+
+      // Delete user's account
+      await Users.findByIdAndDelete(userId);
+
+      return res
+        .status(200)
+        .json({ message: `${user.fullName} was deleted successfully` });
+    } catch (error) {
       handleError(res, error);
     }
   }

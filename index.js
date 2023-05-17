@@ -1409,7 +1409,7 @@ app.use((err, req, res, next) => {
   console.log("Error object:", err);
   res
     .status(500)
-    .send("Oopps! Something went wrong. Check back in a little later.");
+    .send("Oops! Something went wrong. Check back in a little later.");
 });
 
 // process.env.PORT listens for pre-configured port number or, if not found, set port to pertain port number

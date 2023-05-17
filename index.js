@@ -885,28 +885,39 @@ app.delete(
 /**
  * DELETE: Deletes brewery
  * Request body: Bearer token
- * @param brewery
+ * @param breweryId
  * @returns success message
  * @requires passport
  */
 app.delete(
-  "/breweries/:brewery",
+  "/breweries/:breweryId",
   passport.authenticate("jwt", { session: false }),
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(422).json({ errors: errors.array() });
     }
-    Breweries.findOneAndRemove({ _id: req.params.brewery })
-      .populate("companyName")
-      .then((brewery) => {
-        if (!brewery) {
-          res.status(400).send(`${brewery.companyName} was not found.`);
-        } else {
-          res.status(200).send(`${brewery.companyName} was deleted.`);
-        }
-      })
-      .catch(handleError);
+    try {
+      const breweryId = req.params.breweryId;
+      const brewery = await Breweries.findById(breweryId);
+
+      if (!brewery) {
+        return res.status(400).send(`Brewery not found.`);
+      }
+
+      // Remove brewery from all staff members' breweries array
+      await Users.updateMany(
+        { _id: { $in: brewery.staff } },
+        { $pull: { breweries: breweryId } }
+      );
+
+      // Delete the brewery
+      await Breweries.findByIdAndRemove(breweryId);
+
+      res.status(200).send(`${brewery.companyName} was deleted.`);
+    } catch (error) {
+      handleError(res, error);
+    }
   }
 );
 

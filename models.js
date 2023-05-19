@@ -61,35 +61,6 @@ const categorySchema = mongoose.Schema({
   name: { type: String, required: true },
 });
 
-// Movie schema being defined for Movies Collection. It follows a syntax of Key: {Value}, format.
-let movieSchema = mongoose.Schema({
-  Title: { type: String, required: true },
-  Description: { type: String, required: true },
-  Genre: {
-    Name: String,
-    Description: String,
-  },
-  Director: {
-    Name: String,
-    Bio: String,
-  },
-  ImageUrl: String,
-  Release: String,
-  Featured: Boolean,
-  Actors: [String],
-});
-
-// User schema being defined for Users Collection
-// let userSchema = mongoose.Schema({
-//   Username: { type: String, required: true }, // MUST have a username and MUST be a string
-//   Password: { type: String, required: true },
-//   Email: { type: String, required: true },
-//   Birthday: Date, // Must be a value of the date type Date
-//   // defines value will be an ObjectID by way of ref: 'Movie' ('Movie' name of model which links movieSchema to database)
-//   FavoriteMovies: [{ type: mongoose.Schema.Types.ObjectId, ref: "Movie" }],
-//   ToWatch: [{ type: mongoose.Schema.Types.ObjectId, ref: "Movie" }],
-// });
-
 // Function hashes users summited password
 userSchema.statics.hashPassword = (password) => {
   return bcrypt.hashSync(password, 10);
@@ -107,14 +78,9 @@ const Brewery = mongoose.model("Brewery", brewerySchema);
 const Category = mongoose.model("Category", categorySchema);
 const Invite = mongoose.model("Invite", inviteSchema);
 
-// Watch capital letters and plurals. Below will make db.movies and db.users
-let Movie = mongoose.model("Movie", movieSchema);
-
 // export models
 module.exports.Beer = Beer;
 module.exports.Brewery = Brewery;
 module.exports.Category = Category;
 module.exports.User = User;
 module.exports.Invite = Invite;
-
-module.exports.Movie = Movie;

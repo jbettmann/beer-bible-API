@@ -25,6 +25,7 @@ const Invites = Models.Invite;
 
 // allows Mongoose to conncect to database to perform CRUD operations on doc
 mongoose.connect(
+  // process.env.CONNECTION_URI defined in Vercel
   process.env.CONNECTION_URI || "mongodb://localhost:27017/BeerBibleDB",
   { useNewUrlParser: true, useUnifiedTopology: true }
 );
@@ -290,12 +291,12 @@ app.post(
     }
 
     try {
-      const user = await Users.findById(req.params.user).populate();
+      const user = await Users.findById(req.params.user);
       if (!user) {
         return res.status(400).send("User not found");
       }
 
-      // Check if category already exists
+      // Check if brewery already exists
       const existingBrewery = user.breweries.find(
         (brewery) => brewery.companyName === req.body.companyName
       );

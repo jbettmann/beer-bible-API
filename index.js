@@ -23,8 +23,6 @@ const Breweries = Models.Brewery;
 const Categories = Models.Category;
 const Invites = Models.Invite;
 
-const Movies = Models.Movie;
-
 // allows Mongoose to conncect to database to perform CRUD operations on doc
 mongoose.connect(
   process.env.CONNECTION_URI || "mongodb://localhost:27017/BeerBibleDB",
@@ -37,9 +35,8 @@ const app = express();
 let allowedOrigins = [
   "http://localhost:8080",
   "http://testsite.com",
-  "http://localhost:1234",
-  "http://localhost:4200",
-  "https://bettsmyflix.netlify.app",
+  "https://beer-bible-api.vercel.app/",
+  "beer-bible-api-git-main-jbettmann.vercel.app",
   "https://jbettmann.github.io",
 ];
 
@@ -74,7 +71,7 @@ app.use(express.static("public"));
 
 // sends response below to homepage
 app.get("/", (req, res) => {
-  res.send(`myFlix. All the greats, in one place!`);
+  res.send(`Beers are flowin! Cheers!`);
 });
 
 let handleError = (res, err) => {
@@ -274,6 +271,7 @@ app.post(
 app.post(
   "/users/:user/breweries",
   [
+    passport.authenticate("jwt", { session: false }),
     // Validation logic
     //minimum value of 5 characters are only allowed
     check("companyName", "Company Name is required").not().isEmpty(),
@@ -397,7 +395,7 @@ app.post(
 app.post(
   "/breweries/:brewery/categories",
   [
-    // passport.authenticate("jwt", { session: false }),
+    passport.authenticate("jwt", { session: false }),
     // Validation logic
     //minimum value of 1 characters are only allowed
     check("name", "Category name is required").isLength({ min: 1 }),

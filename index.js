@@ -476,7 +476,7 @@ app.get(
  */
 app.get(
   "/users/:username",
-  // passport.authenticate("jwt", { session: false }),
+  passport.authenticate("jwt", { session: false }),
   (req, res) => {
     // condition to find specific user based on username
     Users.findOne({ username: req.params.username })
@@ -532,7 +532,7 @@ app.get(
  */
 app.get(
   "/breweries/:breweryId",
-  // passport.authenticate("jwt", { session: false }),
+  passport.authenticate("jwt", { session: false }),
   (req, res) => {
     // condition to find specific brewery based on _id
     Breweries.findOne({ _id: req.params.breweryId })
@@ -592,7 +592,7 @@ app.put(
   "/users/:userId",
   [
     // Validation logic
-    // passport.authenticate("jwt", { session: false }),
+    passport.authenticate("jwt", { session: false }),
     // Minimum value of 5 characters is required
     check("username", "Username is required").isLength({ min: 5 }),
 

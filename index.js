@@ -4,7 +4,28 @@ const express = require("express"),
   morgan = require("morgan"),
   mongoose = require("mongoose"), // Intergrates mongoose into file
   Models = require("./models.js"), // allows access to database schema
-  cors = require("cors"); // Cross-Orgin Resourse Sharing
+  cors = require("cors"), // Cross-Orgin Resourse Sharing
+  jwt = require("jsonwebtoken");
+
+require("dotenv").config();
+
+function verifyJWT(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(403).send("A token is required for authentication");
+  }
+
+  const token = authHeader.split(" ")[1]; // Bearer <token>
+
+  try {
+    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
+    req.user = decoded;
+  } catch (err) {
+    return res.status(401).json("Invalid Token");
+  }
+  return next();
+}
 
 mongoose.set("strictQuery", true); // handles undefined paths
 
@@ -90,119 +111,111 @@ let handleError = (res, err) => {
  * Request body: Bearer token, JSON with user information & email to invitee required!
  * @returns Invitation accepted message
  */
-app.post(
-  "/breweries/:breweryId/invite",
-  passport.authenticate("jwt", { session: false }),
-  async (req, res) => {
-    try {
-      const breweryId = req.params.breweryId;
-      const { email } = req.body; // email of the user to be invited
-      console.log(email);
+app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
+  try {
+    const breweryId = req.params.breweryId;
+    const { email } = req.body; // email of the user to be invited
+    console.log(email);
 
-      // Fetch the brewery from the database
-      const brewery = await Breweries.findById(breweryId);
-      if (!brewery) {
-        return res.status(404).json({ message: "Brewery not found." });
-      }
-
-      // Generate a random token and create an invite record in the database
-      const token = crypto.randomBytes(16).toString("hex");
-      const invite = await new Invites({
-        token,
-        brewery: breweryId,
-        sender: req.user._id,
-      }).save();
-
-      // Send email here
-      const inviteUrl = `http://localhost:8080/accept-invite?token=${token}`;
-
-      // Specify email parameters
-      const emailParams = {
-        Destination: {
-          /* required */ ToAddresses: [email],
-        },
-        Message: {
-          /* required */
-          Body: {
-            /* required */
-            Text: {
-              Charset: "UTF-8",
-              Data: `You have been invited to join ${brewery.companyName}! Click the link to join: ${inviteUrl}`,
-            },
-          },
-          Subject: {
-            Charset: "UTF-8",
-            Data: "Brewery Invitation",
-          },
-        },
-        Source: "hello@jordanbettmann.com" /* required */,
-        ReplyToAddresses: ["hello@jordanbettmann.com"],
-      };
-
-      // Create the promise and SES service object
-      const sendPromise = ses.sendEmail(emailParams);
-
-      // Handle promise's fulfilled/rejected states
-      sendPromise
-        .then(function (data) {
-          console.log(data.MessageId);
-        })
-        .catch(function (err) {
-          console.error(err, err.stack);
-        });
-
-      res.status(200).json({ message: "Invitation sent." });
-    } catch (error) {
-      handleError(res, error);
+    // Fetch the brewery from the database
+    const brewery = await Breweries.findById(breweryId);
+    if (!brewery) {
+      return res.status(404).json({ message: "Brewery not found." });
     }
+
+    // Generate a random token and create an invite record in the database
+    const token = crypto.randomBytes(16).toString("hex");
+    const invite = await new Invites({
+      token,
+      brewery: breweryId,
+      sender: req.user._id,
+    }).save();
+
+    // Send email here
+    const inviteUrl = `http://localhost:8080/accept-invite?token=${token}`;
+
+    // Specify email parameters
+    const emailParams = {
+      Destination: {
+        /* required */ ToAddresses: [email],
+      },
+      Message: {
+        /* required */
+        Body: {
+          /* required */
+          Text: {
+            Charset: "UTF-8",
+            Data: `You have been invited to join ${brewery.companyName}! Click the link to join: ${inviteUrl}`,
+          },
+        },
+        Subject: {
+          Charset: "UTF-8",
+          Data: "Brewery Invitation",
+        },
+      },
+      Source: "hello@jordanbettmann.com" /* required */,
+      ReplyToAddresses: ["hello@jordanbettmann.com"],
+    };
+
+    // Create the promise and SES service object
+    const sendPromise = ses.sendEmail(emailParams);
+
+    // Handle promise's fulfilled/rejected states
+    sendPromise
+      .then(function (data) {
+        console.log(data.MessageId);
+      })
+      .catch(function (err) {
+        console.error(err, err.stack);
+      });
+
+    res.status(200).json({ message: "Invitation sent." });
+  } catch (error) {
+    handleError(res, error);
   }
-);
+});
 
 /**
  * POST: Accepting invitation. Adds brewery to users breweries and user to breweries staff;
  * Request body: Bearer token, JSON with user information
  * @returns Invitation accepted message
  */
-app.post(
-  "/accept-invite",
-  passport.authenticate("jwt", { session: false }),
-  async (req, res) => {
-    try {
-      const { token } = req.body;
+app.post("/accept-invite", verifyJWT, async (req, res) => {
+  try {
+    const { token } = req.body;
 
-      const invite = await Invites.findOne({ token });
+    const invite = await Invites.findOne({ token });
 
-      if (!invite) {
-        return res
-          .status(400)
-          .json({ message: "Invalid or expired invite token." });
-      }
-
-      // Add the user to the brewery's staff list and vice versa
-      const brewery = await Breweries.findById(invite.brewery);
-      const user = await Users.findById(req.user._id);
-      const existingStaff = brewery.staff.includes(req.user._id);
-      console.log(existingStaff);
-      if (existingStaff) {
-        return res
-          .status(400)
-          .json({ message: `${user.email} already exists in brewery!` });
-      }
-      brewery.staff.push(req.user._id);
-      await brewery.save();
-
-      user.breweries.push(brewery._id);
-      await user.save();
-
-      // Delete the invite from the database
-      await invite.remove();
-
-      res.status(200).json({ message: "Invitation accepted." });
-    } catch (error) {
-      handleError(res, error);
+    if (!invite) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired invite token." });
     }
+
+    // Add the user to the brewery's staff list and vice versa
+    const brewery = await Breweries.findById(invite.brewery);
+    const user = await Users.findById(req.user._id);
+    const existingStaff = brewery.staff.includes(req.user._id);
+    console.log(existingStaff);
+    if (existingStaff) {
+      return res
+        .status(400)
+        .json({ message: `${user.email} already exists in brewery!` });
+    }
+    brewery.staff.push(req.user._id);
+    await brewery.save();
+
+    user.breweries.push(brewery._id);
+    await user.save();
+
+    // Delete the invite from the database
+    await invite.remove();
+
+    res.status(200).json({ message: "Invitation accepted." });
+  } catch (error) {
+    handleError(res, error);
   }
-);
+});
 
 /**
  * POST: Creates new user; Username, Password & Email are required fields!
@@ -272,7 +285,7 @@ app.post(
 app.post(
   "/users/:user/breweries",
   [
-    passport.authenticate("jwt", { session: false }),
+    verifyJWT,
     // Validation logic
     //minimum value of 5 characters are only allowed
     check("companyName", "Company Name is required").not().isEmpty(),
@@ -338,7 +351,7 @@ app.post(
 app.post(
   "/breweries/:brewery/beers",
   [
-    passport.authenticate("jwt", { session: false }),
+    verifyJWT,
     // Validation logic
     //minimum value of 1 characters are only allowed
     check("name", "Beer name is required").isLength({ min: 1 }),
@@ -396,7 +409,7 @@ app.post(
 app.post(
   "/breweries/:brewery/categories",
   [
-    passport.authenticate("jwt", { session: false }),
+    verifyJWT,
     // Validation logic
     //minimum value of 1 characters are only allowed
     check("name", "Category name is required").isLength({ min: 1 }),
@@ -455,17 +468,13 @@ app.post(
  * @returns array of user objects
  * @requires passport
  */
-app.get(
-  "/users",
-  // passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    Users.find() // .find() grabs data on all documents in collection
-      .then((users) => {
-        res.status(201).json(users);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/users", verifyJWT, (req, res) => {
+  Users.find() // .find() grabs data on all documents in collection
+    .then((users) => {
+      res.status(201).json(users);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns data on a single user (user object) by user username
@@ -474,18 +483,14 @@ app.get(
  * @returns user object
  * @requires passport
  */
-app.get(
-  "/users/:username",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    // condition to find specific user based on username
-    Users.findOne({ username: req.params.username })
-      .then((user) => {
-        res.json(user);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/users/:username", verifyJWT, (req, res) => {
+  // condition to find specific user based on username
+  Users.findOne({ username: req.params.username })
+    .then((user) => {
+      res.json(user);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns a list of ALL breweries
@@ -493,17 +498,13 @@ app.get(
  * @returns array of brewery objects
  * @requires passport
  */
-app.get(
-  "/breweries",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    Breweries.find() // .find() grabs data on all documents in collection
-      .then((brewery) => {
-        res.status(201).json(brewery);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/breweries", verifyJWT, (req, res) => {
+  Breweries.find() // .find() grabs data on all documents in collection
+    .then((brewery) => {
+      res.status(201).json(brewery);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns a list of ALL breweries beers
@@ -511,17 +512,13 @@ app.get(
  * @returns array of beer objects
  * @requires passport
  */
-app.get(
-  "/breweries/:breweryId/beers",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    Beers.find({ companyId: req.params.breweryId }) // find my companyId
-      .then((beers) => {
-        res.status(201).json(beers);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
+  Beers.find({ companyId: req.params.breweryId }) // find my companyId
+    .then((beers) => {
+      res.status(201).json(beers);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns data on a single brewery (brewery object) by brewery id
@@ -530,18 +527,14 @@ app.get(
  * @returns brewery object
  * @requires passport
  */
-app.get(
-  "/breweries/:breweryId",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    // condition to find specific brewery based on _id
-    Breweries.findOne({ _id: req.params.breweryId })
-      .then((brewery) => {
-        res.json(brewery);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/breweries/:breweryId", verifyJWT, (req, res) => {
+  // condition to find specific brewery based on _id
+  Breweries.findOne({ _id: req.params.breweryId })
+    .then((brewery) => {
+      res.json(brewery);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns a list of ALL beers
@@ -551,7 +544,7 @@ app.get(
  */
 app.get(
   "/beers",
-  // passport.authenticate("jwt", { session: false }),
+  // verifyJWT,
   (req, res) => {
     Beers.find() // .find() grabs data on all documents in collection
       .then((beers) => {
@@ -569,7 +562,7 @@ app.get(
  */
 app.get(
   "/categories",
-  // passport.authenticate("jwt", { session: false }),
+  // verifyJWT,
   (req, res) => {
     Categories.find() // .find() grabs data on all documents in collection
       .then((categories) => {
@@ -592,7 +585,7 @@ app.put(
   "/users/:userId",
   [
     // Validation logic
-    passport.authenticate("jwt", { session: false }),
+    verifyJWT,
     // Minimum value of 5 characters is required
     check("username", "Username is required").isLength({ min: 5 }),
 
@@ -651,7 +644,7 @@ app.put(
   "/breweries/:breweryId/beers/:beerId",
   [
     // Validation logic
-    passport.authenticate("jwt", { session: false }),
+    verifyJWT,
     //minimum value of 5 characters are only allowed
     check("name", "Name is required").not().isEmpty(),
 
@@ -716,7 +709,7 @@ app.put(
   "/breweries/:breweryId",
   [
     // Validation logic
-    passport.authenticate("jwt", { session: false }),
+    verifyJWT,
     // Minimum value of 1 character is required
     check("companyName", "Company Name is required").isLength({ min: 1 }),
   ],
@@ -762,33 +755,29 @@ app.put(
  * @returns brewery object with updates
  * @requires passport
  */
-app.put(
-  "/breweries/:breweryId/admins/:userId",
-  passport.authenticate("jwt", { session: false }),
-  async (req, res) => {
-    try {
-      const breweryId = req.params.breweryId;
-      const userId = req.params.userId;
+app.put("/breweries/:breweryId/admins/:userId", verifyJWT, async (req, res) => {
+  try {
+    const breweryId = req.params.breweryId;
+    const userId = req.params.userId;
 
-      const brewery = await Breweries.findById(breweryId);
-      const user = await Users.findById(userId);
+    const brewery = await Breweries.findById(breweryId);
+    const user = await Users.findById(userId);
 
-      // Check if brewery and user exist
-      if (!brewery || !user) {
-        return res.status(400).json({ error: "Brewery or User not found" });
-      }
-
-      // Add user to admin array if not already present
-      await Breweries.findByIdAndUpdate(breweryId, {
-        $addToSet: { admin: userId },
-      });
-
-      res.status(200).json({ message: "Admin added successfully" });
-    } catch (error) {
-      handleError(res, error);
+    // Check if brewery and user exist
+    if (!brewery || !user) {
+      return res.status(400).json({ error: "Brewery or User not found" });
     }
+
+    // Add user to admin array if not already present
+    await Breweries.findByIdAndUpdate(breweryId, {
+      $addToSet: { admin: userId },
+    });
+
+    res.status(200).json({ message: "Admin added successfully" });
+  } catch (error) {
+    handleError(res, error);
   }
-);
+});
 
 /**
  * PUT: Update Brewery Owner
@@ -800,7 +789,7 @@ app.put(
  */
 app.put(
   "/breweries/:breweryId/owner/:newOwnerId",
-  passport.authenticate("jwt", { session: false }),
+  verifyJWT,
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const newOwnerId = req.params.newOwnerId;
@@ -842,7 +831,7 @@ app.put(
  */
 app.delete(
   "/breweries/:breweryId/admin/:userId",
-  passport.authenticate("jwt", { session: false }),
+  verifyJWT,
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const userId = req.params.userId;
@@ -888,37 +877,33 @@ app.delete(
  * @returns success message
  * @requires passport
  */
-app.delete(
-  "/breweries/:breweryId",
-  passport.authenticate("jwt", { session: false }),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json({ errors: errors.array() });
-    }
-    try {
-      const breweryId = req.params.breweryId;
-      const brewery = await Breweries.findById(breweryId);
-
-      if (!brewery) {
-        return res.status(400).send(`Brewery not found.`);
-      }
-
-      // Remove brewery from all staff members' breweries array
-      await Users.updateMany(
-        { _id: { $in: brewery.staff } },
-        { $pull: { breweries: breweryId } }
-      );
-
-      // Delete the brewery
-      await Breweries.findByIdAndRemove(breweryId);
-
-      res.status(200).send(`${brewery.companyName} was deleted.`);
-    } catch (error) {
-      handleError(res, error);
-    }
+app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.array() });
   }
-);
+  try {
+    const breweryId = req.params.breweryId;
+    const brewery = await Breweries.findById(breweryId);
+
+    if (!brewery) {
+      return res.status(400).send(`Brewery not found.`);
+    }
+
+    // Remove brewery from all staff members' breweries array
+    await Users.updateMany(
+      { _id: { $in: brewery.staff } },
+      { $pull: { breweries: breweryId } }
+    );
+
+    // Delete the brewery
+    await Breweries.findByIdAndRemove(breweryId);
+
+    res.status(200).send(`${brewery.companyName} was deleted.`);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
 
 /**
  * DELETE: Deletes beer
@@ -930,7 +915,7 @@ app.delete(
  */
 app.delete(
   "/breweries/:breweryId/beers/:beerId",
-  passport.authenticate("jwt", { session: false }),
+  verifyJWT,
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -960,7 +945,7 @@ app.delete(
  */
 app.delete(
   "/breweries/:breweryId/staff/:userId",
-  passport.authenticate("jwt", { session: false }),
+  verifyJWT,
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const userId = req.params.userId;
@@ -1028,7 +1013,7 @@ app.delete(
  */
 app.delete(
   "/users/:userId/breweries/:breweryId",
-  passport.authenticate("jwt", { session: false }),
+  verifyJWT,
   async (req, res) => {
     const userId = req.params.userId;
     const breweryId = req.params.breweryId;
@@ -1069,40 +1054,36 @@ app.delete(
  * @returns success message
  * @requires passport
  */
-app.delete(
-  "/users/:userId",
-  passport.authenticate("jwt", { session: false }),
-  async (req, res) => {
-    const userId = req.params.userId;
+app.delete("/users/:userId", verifyJWT, async (req, res) => {
+  const userId = req.params.userId;
 
-    try {
-      const user = await Users.findById(userId);
+  try {
+    const user = await Users.findById(userId);
 
-      // Check if user exists
-      if (!user) {
-        return res.status(400).json({ error: "User not found" });
-      }
-
-      // Check if user is an owner of any breweries
-      const breweries = await Breweries.find({ owner: userId });
-
-      if (breweries.length > 0) {
-        return res.status(400).json({
-          error: `${user.fullName} is an owner of ${breweries}. Please reassign ownership before deleting account.`,
-        });
-      }
-
-      // Delete user's account
-      await Users.findByIdAndDelete(userId);
-
-      return res
-        .status(200)
-        .json({ message: `${user.fullName} was deleted successfully` });
-    } catch (error) {
-      handleError(res, error);
+    // Check if user exists
+    if (!user) {
+      return res.status(400).json({ error: "User not found" });
     }
+
+    // Check if user is an owner of any breweries
+    const breweries = await Breweries.find({ owner: userId });
+
+    if (breweries.length > 0) {
+      return res.status(400).json({
+        error: `${user.fullName} is an owner of ${breweries}. Please reassign ownership before deleting account.`,
+      });
+    }
+
+    // Delete user's account
+    await Users.findByIdAndDelete(userId);
+
+    return res
+      .status(200)
+      .json({ message: `${user.fullName} was deleted successfully` });
+  } catch (error) {
+    handleError(res, error);
   }
-);
+});
 
 // catches and logs error if occurs. Should always be defined last
 app.use((err, req, res, next) => {

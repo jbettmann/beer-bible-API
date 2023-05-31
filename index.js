@@ -22,6 +22,7 @@ function verifyJWT(req, res, next) {
     const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
     req.user = decoded;
   } catch (err) {
+    console.log(err);
     return res.status(401).json("Invalid Token");
   }
   return next();
@@ -468,13 +469,17 @@ app.post(
  * @returns array of user objects
  * @requires passport
  */
-app.get("/users", verifyJWT, (req, res) => {
-  Users.find() // .find() grabs data on all documents in collection
-    .then((users) => {
-      res.status(201).json(users);
-    })
-    .catch(handleError);
-});
+app.get(
+  "/users",
+  // verifyJWT,
+  (req, res) => {
+    Users.find() // .find() grabs data on all documents in collection
+      .then((users) => {
+        res.status(201).json(users);
+      })
+      .catch(handleError);
+  }
+);
 
 /**
  * GET: Returns data on a single user (user object) by user username

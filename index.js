@@ -57,6 +57,7 @@ const app = express();
 // List of allowed domains
 let allowedOrigins = [
   "http://localhost:8080",
+  "http://localhost:3000",
   "http://testsite.com",
   "https://beer-bible-api.vercel.app/",
   "beer-bible-api-git-main-jbettmann.vercel.app",
@@ -469,17 +470,13 @@ app.post(
  * @returns array of user objects
  * @requires passport
  */
-app.get(
-  "/users",
-  // verifyJWT,
-  (req, res) => {
-    Users.find() // .find() grabs data on all documents in collection
-      .then((users) => {
-        res.status(201).json(users);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/users", verifyJWT, (req, res) => {
+  Users.find() // .find() grabs data on all documents in collection
+    .then((users) => {
+      res.status(201).json(users);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns data on a single user (user object) by user username

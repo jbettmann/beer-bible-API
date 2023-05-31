@@ -3,4 +3,4 @@
 node_modules
 
 /db_collections_sample
-.env.local
+.env

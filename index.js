@@ -11,15 +11,16 @@ require("dotenv").config();
 
 function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
-
+  console.log("Auth header:", authHeader);
   if (!authHeader) {
     return res.status(403).send("A token is required for authentication");
   }
 
   const token = authHeader.split(" ")[1]; // Bearer <token>
-
+  console.log("Secret key:", process.env.NEXTAUTH_SECRET);
   try {
     const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
+    console.log("Decoded token:", decoded);
     req.user = decoded;
   } catch (err) {
     console.log(err);

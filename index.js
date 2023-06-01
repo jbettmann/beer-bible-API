@@ -17,7 +17,7 @@ function verifyJWT(req, res, next) {
   }
 
   const token = authHeader.split(" ")[1]; // Bearer <token>
-  console.log("token", token, "authHeader", authHeader);
+
   try {
     const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET);
 
@@ -60,7 +60,7 @@ let allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:3000",
   "http://testsite.com",
-  "https://beer-bible-api.vercel.app/",
+  "https://beer-bible-api.vercel.app",
   "beer-bible-api-git-main-jbettmann.vercel.app",
   "https://jbettmann.github.io",
 ];
@@ -101,7 +101,7 @@ app.get("/", (req, res) => {
 
 let handleError = (res, err) => {
   console.error(err);
-  console.log(err);
+
   res.status(500).send(`Error: ${err}`);
 };
 
@@ -118,7 +118,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
   try {
     const breweryId = req.params.breweryId;
     const { email } = req.body; // email of the user to be invited
-    console.log(email);
+   
 
     // Fetch the brewery from the database
     const brewery = await Breweries.findById(breweryId);
@@ -474,6 +474,7 @@ app.post(
 app.get("/users", verifyJWT, (req, res) => {
   Users.find() // .find() grabs data on all documents in collection
     .then((users) => {
+     
       res.status(201).json(users);
     })
     .catch(handleError);
@@ -486,14 +487,18 @@ app.get("/users", verifyJWT, (req, res) => {
  * @returns user object
  * @requires passport
  */
-app.get("/users/:username", verifyJWT, (req, res) => {
-  // condition to find specific user based on username
-  Users.findOne({ username: req.params.username })
-    .then((user) => {
-      res.json(user);
-    })
-    .catch(handleError);
-});
+app.get(
+  "/users/:email",
+  // verifyJWT,
+  (req, res) => {
+    // condition to find specific user based on username
+    Users.findOne({ email: req.params.email })
+      .then((user) => {
+        res.json(user);
+      })
+      .catch(handleError);
+  }
+);
 
 /**
  * GET: Returns a list of ALL breweries

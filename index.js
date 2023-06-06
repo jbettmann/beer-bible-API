@@ -118,7 +118,6 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
   try {
     const breweryId = req.params.breweryId;
     const { email } = req.body; // email of the user to be invited
-   
 
     // Fetch the brewery from the database
     const brewery = await Breweries.findById(breweryId);
@@ -471,14 +470,17 @@ app.post(
  * @returns array of user objects
  * @requires passport
  */
-app.get("/users", verifyJWT, (req, res) => {
-  Users.find() // .find() grabs data on all documents in collection
-    .then((users) => {
-     
-      res.status(201).json(users);
-    })
-    .catch(handleError);
-});
+app.get(
+  "/users",
+  //  verifyJWT,
+  (req, res) => {
+    Users.find() // .find() grabs data on all documents in collection
+      .then((users) => {
+        res.status(201).json(users);
+      })
+      .catch(handleError);
+  }
+);
 
 /**
  * GET: Returns data on a single user (user object) by user username

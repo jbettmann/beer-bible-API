@@ -433,12 +433,13 @@ app.post("/breweries", verifyJWT, async (req, res) => {
   // gets user from token verifyJWT
   const staff = req.user._id;
   const breweryIds = req.body.breweryIds;
+  console.log(breweryIds);
 
   try {
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
-      staff: staff,
+      // staff: staff,
     });
 
     if (breweries.length === 0) {

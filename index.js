@@ -178,48 +178,6 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 });
 
 /**
- * POST: Accepting invitation. Adds brewery to users breweries and user to breweries staff;
- * Request body: Bearer token, JSON with user information
- * @returns Invitation accepted message
- */
-app.post("/accept-invite", verifyJWT, async (req, res) => {
-  try {
-    const { token } = req.body;
-
-    const invite = await Invites.findOne({ token });
-
-    if (!invite) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired invite token." });
-    }
-
-    // Add the user to the brewery's staff list and vice versa
-    const brewery = await Breweries.findById(invite.brewery);
-    const user = await Users.findById(req.user._id);
-    const existingStaff = brewery.staff.includes(req.user._id);
-    console.log(existingStaff);
-    if (existingStaff) {
-      return res
-        .status(400)
-        .json({ message: `${user.email} already exists in brewery!` });
-    }
-    brewery.staff.push(req.user._id);
-    await brewery.save();
-
-    user.breweries.push(brewery._id);
-    await user.save();
-
-    // Delete the invite from the database
-    await invite.remove();
-
-    res.status(200).json({ message: "Invitation accepted." });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-/**
  * POST: Creates new user; Username, Password & Email are required fields!
  * Request body: Bearer token, JSON with user information
  * @returns user object
@@ -465,6 +423,47 @@ app.post(
 // GET REQUEST ******************
 
 /**
+ * GET: Accepting invitation. Adds brewery to users breweries and user to breweries staff;
+ * Request: Bearer token from logged in user in header, token from URL param
+ * @returns Invitation accepted message
+ */
+app.get("/accept-invite/:token", verifyJWT, async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const invite = await Invites.findOne({ token });
+
+    if (!invite) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired invite token." });
+    }
+
+    // Add the user to the brewery's staff list and vice versa
+    const brewery = await Breweries.findById(invite.brewery);
+    const user = await Users.findById(req.user._id);
+    const existingStaff = brewery.staff.includes(req.user._id);
+    if (existingStaff) {
+      return res
+        .status(400)
+        .json({ message: `${user.email} already exists in brewery!` });
+    }
+    brewery.staff.push(req.user._id);
+    await brewery.save();
+
+    user.breweries.push(brewery._id);
+    await user.save();
+
+    // Delete the invite from the database
+    await invite.remove();
+
+    res.status(200).json({ message: "Invitation accepted." });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+/**
  * GET: Returns a list of ALL users
  * Request body: Bearer token
  * @returns array of user objects
@@ -531,19 +530,35 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
 });
 
 /**
- * GET: Returns data on a single brewery (brewery object) by brewery id
+ * GET: Returns data on a single brewery (brewery object)
+ * by brewery id only if user is apart of staff array.
  * Request body: Bearer token
  * @param brewery
  * @returns brewery object
  * @requires passport
  */
-app.get("/breweries/:breweryId", verifyJWT, (req, res) => {
-  // condition to find specific brewery based on _id
-  Breweries.findOne({ _id: req.params.breweryId })
-    .then((brewery) => {
-      res.json(brewery);
-    })
-    .catch(handleError);
+app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
+  // gets user from token verifyJWT
+  const staff = req.user._id;
+
+  try {
+    // checks if brewery exists and if user requesting data is in staff array
+    const brewery = await Breweries.findOne({
+      _id: req.params.breweryId,
+      staff: staff,
+    });
+
+    if (!brewery) {
+      return res
+        .status(401)
+        .json("You are not authorized to view this brewery");
+    }
+
+    return res.status(200).json({ brewery });
+  } catch (error) {
+    handleError(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /**

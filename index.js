@@ -420,6 +420,40 @@ app.post(
   }
 );
 
+/**
+ * POST: Returns data on multiple breweries (array of brewery objects)
+ * by array of brewery ids only if user is apart of staff array.
+ * Request body: Bearer token, JSON with array of brewery ids
+ * @param breweries
+ * @returns array of brewery objects
+ * @requires passport
+ */
+app.post("/breweries", verifyJWT, async (req, res) => {
+  // Note: Changed to POST to allow sending an array of ids
+  // gets user from token verifyJWT
+  const staff = req.user._id;
+  const breweryIds = req.body.breweryIds;
+
+  try {
+    // checks if breweries exist and if user requesting data is in staff array
+    const breweries = await Breweries.find({
+      _id: { $in: breweryIds },
+      staff: staff,
+    });
+
+    if (breweries.length === 0) {
+      return res
+        .status(401)
+        .json("You are not authorized to view these breweries");
+    }
+
+    return res.status(200).json({ breweries });
+  } catch (error) {
+    handleError(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET REQUEST ******************
 
 /**
@@ -529,6 +563,7 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
     .catch(handleError);
 });
 
+//  Created POST request to handle array of brewery ids
 /**
  * GET: Returns data on a single brewery (brewery object)
  * by brewery id only if user is apart of staff array.
@@ -537,29 +572,29 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
  * @returns brewery object
  * @requires passport
  */
-app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
-  // gets user from token verifyJWT
-  const staff = req.user._id;
+// app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
+//   // gets user from token verifyJWT
+//   const staff = req.user._id;
 
-  try {
-    // checks if brewery exists and if user requesting data is in staff array
-    const brewery = await Breweries.findOne({
-      _id: req.params.breweryId,
-      staff: staff,
-    });
+//   try {
+//     // checks if brewery exists and if user requesting data is in staff array
+//     const brewery = await Breweries.findOne({
+//       _id: req.params.breweryId,
+//       staff: staff,
+//     });
 
-    if (!brewery) {
-      return res
-        .status(401)
-        .json("You are not authorized to view this brewery");
-    }
+//     if (!brewery) {
+//       return res
+//         .status(401)
+//         .json("You are not authorized to view this brewery");
+//     }
 
-    return res.status(200).json({ brewery });
-  } catch (error) {
-    handleError(error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
+//     return res.status(200).json({ brewery });
+//   } catch (error) {
+//     handleError(error);
+//     return res.status(500).json({ error: "Internal server error" });
+//   }
+// });
 
 /**
  * GET: Returns a list of ALL beers

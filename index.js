@@ -130,7 +130,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     const invite = await new Invites({
       token,
       brewery: breweryId,
-      sender: req.user._id,
+      sender: req.user.id,
     }).save();
 
     // Send email here

@@ -281,7 +281,7 @@ app.post(
         companyName: req.body.companyName,
         owner: req.user._id,
         admin: [req.user._id, req.params.admin],
-        staff: [req.user._id, eq.params.staff],
+        staff: [req.user._id, req.params.staff],
         beers: [],
         categories: [],
       });

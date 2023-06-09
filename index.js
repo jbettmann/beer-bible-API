@@ -279,9 +279,9 @@ app.post(
 
       const brewery = new Breweries({
         companyName: req.body.companyName,
-        owner: req.params.user,
-        admin: [req.params.user],
-        staff: [],
+        owner: req.user._id,
+        admin: [req.user._id, ...req.params.admin],
+        staff: [req.user._id, ...req.params.admin],
         beers: [],
         categories: [],
       });

@@ -573,29 +573,29 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
  * @returns brewery object
  * @requires passport
  */
-// app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
-//   // gets user from token verifyJWT
-//   const staff = req.user._id;
+app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
+  // gets user from token verifyJWT
+  const staff = req.user._id;
 
-//   try {
-//     // checks if brewery exists and if user requesting data is in staff array
-//     const brewery = await Breweries.findOne({
-//       _id: req.params.breweryId,
-//       staff: staff,
-//     });
+  try {
+    // checks if brewery exists and if user requesting data is in staff array
+    const brewery = await Breweries.findOne({
+      _id: req.params.breweryId,
+      staff: staff,
+    });
 
-//     if (!brewery) {
-//       return res
-//         .status(401)
-//         .json("You are not authorized to view this brewery");
-//     }
+    if (!brewery) {
+      return res
+        .status(401)
+        .json("You are not authorized to view this brewery");
+    }
 
-//     return res.status(200).json({ brewery });
-//   } catch (error) {
-//     handleError(error);
-//     return res.status(500).json({ error: "Internal server error" });
-//   }
-// });
+    return res.status(200).json({ brewery });
+  } catch (error) {
+    handleError(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 /**
  * GET: Returns a list of ALL beers

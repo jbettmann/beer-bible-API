@@ -462,9 +462,10 @@ app.post("/breweries", verifyJWT, async (req, res) => {
  * Request: Bearer token from logged in user in header, token from URL param
  * @returns Invitation accepted message
  */
-app.get("/accept-invite/:token", verifyJWT, async (req, res) => {
+app.get("/accept-invite", verifyJWT, async (req, res) => {
   try {
     const { token } = req.params;
+    console.log(token);
 
     const invite = await Invites.findOne({ token });
 

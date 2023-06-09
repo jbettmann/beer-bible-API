@@ -134,7 +134,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     }).save();
 
     // Send email here
-    const inviteUrl = `http://localhost:8080/accept-invite?token=${token}`;
+    const inviteUrl = `https://beer-bible-api.vercel.app/accept-invite?token=${token}`;
 
     // Specify email parameters
     const emailParams = {
@@ -280,8 +280,8 @@ app.post(
       const brewery = new Breweries({
         companyName: req.body.companyName,
         owner: req.params.user,
-        admin: [req.params.user, ...req.body.admin],
-        staff: [req.params.user, ...req.body.staff],
+        admin: [],
+        staff: [],
         beers: [],
         categories: [],
       });
@@ -433,7 +433,7 @@ app.post("/breweries", verifyJWT, async (req, res) => {
   // gets user from token verifyJWT
   const staff = req.user._id;
   const breweryIds = req.body.breweryIds;
-  console.log(breweryIds);
+  console.log("brrewerId", breweryIds, "req.user._id", staff);
 
   try {
     // checks if breweries exist and if user requesting data is in staff array

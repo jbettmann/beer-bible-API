@@ -504,17 +504,13 @@ app.get("/accept-invite/:token", verifyJWT, async (req, res) => {
  * @returns array of user objects
  * @requires passport
  */
-app.get(
-  "/users",
-  //  verifyJWT,
-  (req, res) => {
-    Users.find() // .find() grabs data on all documents in collection
-      .then((users) => {
-        res.status(201).json(users);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/users", verifyJWT, (req, res) => {
+  Users.find() // .find() grabs data on all documents in collection
+    .then((users) => {
+      res.status(201).json(users);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns data on a single user (user object) by user username
@@ -523,18 +519,14 @@ app.get(
  * @returns user object
  * @requires passport
  */
-app.get(
-  "/users/:email",
-  // verifyJWT,
-  (req, res) => {
-    // condition to find specific user based on username
-    Users.findOne({ email: req.params.email })
-      .then((user) => {
-        res.json(user);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/users/:email", verifyJWT, (req, res) => {
+  // condition to find specific user based on username
+  Users.findOne({ email: req.params.email })
+    .then((user) => {
+      res.json(user);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns a list of ALL breweries

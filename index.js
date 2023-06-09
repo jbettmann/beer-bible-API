@@ -464,8 +464,7 @@ app.post("/breweries", verifyJWT, async (req, res) => {
  */
 app.get("/accept-invite", verifyJWT, async (req, res) => {
   try {
-    const { token } = req.params;
-    console.log(token);
+    const { token } = req.query;
 
     const invite = await Invites.findOne({ token });
 

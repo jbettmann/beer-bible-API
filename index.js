@@ -431,9 +431,9 @@ app.post(
 app.post("/breweries", verifyJWT, async (req, res) => {
   // Note: Changed to POST to allow sending an array of ids
   // gets user from token verifyJWT
-  const staff = req.user._id;
+  const staff = req.user.id;
   const breweryIds = req.body.breweryIds;
-  console.log("brrewerId", breweryIds, "req.user._id", staff);
+  console.log("brrewerId", breweryIds, "req.user.id", staff);
 
   try {
     // checks if breweries exist and if user requesting data is in staff array
@@ -476,14 +476,14 @@ app.get("/accept-invite/:token", verifyJWT, async (req, res) => {
 
     // Add the user to the brewery's staff list and vice versa
     const brewery = await Breweries.findById(invite.brewery);
-    const user = await Users.findById(req.user._id);
-    const existingStaff = brewery.staff.includes(req.user._id);
+    const user = await Users.findById(req.user.id);
+    const existingStaff = brewery.staff.includes(req.user.id);
     if (existingStaff) {
       return res
         .status(400)
         .json({ message: `${user.email} already exists in brewery!` });
     }
-    brewery.staff.push(req.user._id);
+    brewery.staff.push(req.user.id);
     await brewery.save();
 
     user.breweries.push(brewery._id);
@@ -567,7 +567,7 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
  */
 app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
   // gets user from token verifyJWT
-  const staff = req.user._id;
+  const staff = req.user.id;
 
   try {
     // checks if brewery exists and if user requesting data is in staff array

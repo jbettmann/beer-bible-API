@@ -942,6 +942,12 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
       return res.status(400).send(`Brewery not found.`);
     }
 
+    // Check if the user who made the request is the owner of the brewery
+    if (req.user._id !== brewery.owner.toString()) {
+      return res
+        .status(403)
+        .send("You are not authorized to delete this brewery.");
+    }
     // Remove brewery from all staff members' breweries array
     await Users.updateMany(
       { _id: { $in: brewery.staff } },

@@ -16,12 +16,9 @@ const userSchema = mongoose.Schema({
 const brewerySchema = mongoose.Schema({
   companyName: { type: String, required: true },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
   staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
-  categories: [
-    { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
-  ],
+  categories: [{ type: String, default: [] }],
 });
 
 // beer schema

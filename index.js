@@ -280,7 +280,6 @@ app.post(
       const brewery = new Breweries({
         companyName: req.body.companyName,
         owner: req.params.user,
-        ownerId: req.params.user,
         admin: [],
         staff: [],
         beers: [],
@@ -434,7 +433,6 @@ app.post("/breweries", verifyJWT, async (req, res) => {
   // gets user from token verifyJWT
   const staff = req.user.id;
   const breweryIds = req.body.breweryIds;
-  console.log("brrewerId", breweryIds, "req.user.id", staff);
 
   try {
     // checks if breweries exist and if user requesting data is in staff array

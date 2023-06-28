@@ -573,7 +573,11 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
     const brewery = await Breweries.findOne({
       _id: req.params.breweryId,
       staff: staff,
-    });
+    })
+      .populate("staff")
+      .populate("categories")
+      .populate("admin")
+      .populate("owner");
 
     if (!brewery) {
       return res
@@ -581,7 +585,7 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
         .json("You are not authorized to view this brewery");
     }
 
-    return res.status(200).json({ brewery });
+    return res.status(200).json(brewery);
   } catch (error) {
     handleError(error);
     return res.status(500).json({ error: "Internal server error" });

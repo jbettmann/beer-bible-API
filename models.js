@@ -40,6 +40,7 @@ const beerSchema = mongoose.Schema({
   aroma: String,
   nameSake: String,
   notes: String,
+  archived: { type: Boolean, default: false },
 });
 
 // invite schema

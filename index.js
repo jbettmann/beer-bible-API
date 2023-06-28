@@ -332,6 +332,17 @@ app.post(
         return res.status(400).send("Brewery not found");
       }
 
+      // Check if the user is the owner or an admin of the brewery
+      const userId = req.user.id;
+      if (
+        brewery.owner.toString() !== userId ||
+        !brewery.admin.includes(userId)
+      ) {
+        return res
+          .status(403)
+          .send("User is not authorized to add a beer to this brewery");
+      }
+
       const beer = new Beers({
         companyId: req.params.brewery,
         name: req.body.name,

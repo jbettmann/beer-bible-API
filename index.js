@@ -283,7 +283,7 @@ app.post(
         admin: [],
         staff: [],
         beers: [],
-        categories: [],
+        categories: ["All", "Archived"],
       });
 
       // Validate and save the beer

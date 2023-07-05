@@ -635,7 +635,7 @@ app.get("/categories", verifyJWT, (req, res) => {
     .catch(handleError);
 });
 
-//  PUT/ UPDATE REQUEST ********************
+//  PUT/ UPDATE REQUEST ****************************************************
 
 /**
  * PUT: Update user info
@@ -736,6 +736,45 @@ app.put(
       }
 
       res.status(200).json({ existingBeer });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * PUT: Updates a category; Name is required fields!
+ * Request body: Bearer token, JSON with new category name
+ * @returns updated category object
+ */
+app.put(
+  "/categories/:categoryId",
+  [
+    verifyJWT,
+    // Validation logic
+    //minimum value of 1 characters are only allowed
+    check("name", "Category name is required").isLength({ min: 1 }),
+  ],
+  async (req, res) => {
+    // check the validation object for errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+
+    try {
+      // Find the category by id and update
+      const updatedCategory = await Categories.findByIdAndUpdate(
+        req.params.categoryId,
+        { name: req.body.name },
+        { new: true }
+      );
+
+      if (!updatedCategory) {
+        return res.status(400).send("Category not found");
+      }
+
+      res.status(200).json({ updatedCategory });
     } catch (error) {
       handleError(res, error);
     }

@@ -25,35 +25,35 @@ const brewerySchema = mongoose.Schema({
 });
 
 // beer schema
-const beerSchema = mongoose.Schema({
-  companyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Brewery",
-    required: true,
-    index: true, // increases read performance but decreases write/update/delete
+const beerSchema = mongoose.Schema(
+  {
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Brewery",
+      required: true,
+      index: true, // increases read performance but decreases write/update/delete
+    },
+    image: String, // image url to Supabase storage
+    name: { type: String, required: true },
+    style: { type: String, required: true },
+    abv: Number,
+    ibu: Number,
+    category: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
+    ],
+    malt: [String],
+    hops: [String],
+    flavorNotes: String,
+    aroma: String,
+    nameSake: String,
+    notes: String,
+    archived: { type: Boolean, default: false },
+    releasedOn: Date,
   },
-  image: String, // image url to Supabase storage
-  name: { type: String, required: true },
-  style: { type: String, required: true },
-  abv: Number,
-  ibu: Number,
-  category: [
-    { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
-  ],
-  malt: [String],
-  hops: [String],
-  flavorNotes: String,
-  aroma: String,
-  nameSake: String,
-  notes: String,
-  archived: { type: Boolean, default: false },
-  timestamps: {
-    // timestamps for when beer is created and updated auto generated
-    createdAt: "createdAt",
-    updatedAt: "updatedAt",
-  },
-  releasedOn: Date,
-});
+  {
+    timestamps: true, // This will create the `createdAt` and `updatedAt` fields automatically
+  }
+);
 
 // invite schema
 const inviteSchema = mongoose.Schema({

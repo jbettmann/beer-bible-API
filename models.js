@@ -18,7 +18,10 @@ const brewerySchema = mongoose.Schema({
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
   staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
-  categories: [{ type: String, default: [] }],
+  categories: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
+  ],
+  image: String, // image/logo url to Supabase storage
 });
 
 // beer schema
@@ -29,11 +32,14 @@ const beerSchema = mongoose.Schema({
     required: true,
     index: true, // increases read performance but decreases write/update/delete
   },
+  image: String, // image url to Supabase storage
   name: { type: String, required: true },
   style: { type: String, required: true },
   abv: Number,
   ibu: Number,
-  category: [String],
+  category: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
+  ],
   malt: [String],
   hops: [String],
   flavorNotes: String,
@@ -41,6 +47,12 @@ const beerSchema = mongoose.Schema({
   nameSake: String,
   notes: String,
   archived: { type: Boolean, default: false },
+  timestamps: {
+    // timestamps for when beer is created and updated auto generated
+    createdAt: "createdAt",
+    updatedAt: "updatedAt",
+  },
+  releasedOn: Date,
 });
 
 // invite schema

@@ -243,7 +243,7 @@ app.post(
  * @returns brewery object
  */
 app.post(
-  "/users/:user/breweries",
+  "/users/:userId/breweries",
   [
     verifyJWT,
     // Validation logic
@@ -279,10 +279,10 @@ app.post(
 
       const brewery = new Breweries({
         companyName: req.body.companyName,
-        owner: req.params.user,
+        image: req.body.image,
+        owner: req.params.userId,
         admin: [],
         staff: [],
-        beers: [],
         categories: [],
       });
 
@@ -309,7 +309,7 @@ app.post(
  * @returns beer object
  */
 app.post(
-  "/breweries/:brewery/beers",
+  "/breweries/:breweryId/beers",
   [
     verifyJWT,
     // Validation logic
@@ -327,7 +327,7 @@ app.post(
     }
 
     try {
-      const brewery = await Breweries.findById(req.params.brewery);
+      const brewery = await Breweries.findById(req.params.breweryId);
       if (!brewery) {
         return res.status(400).send("Brewery not found");
       }
@@ -345,6 +345,7 @@ app.post(
 
       const beer = new Beers({
         companyId: req.params.brewery,
+        image: req.body.image,
         name: req.body.name,
         style: req.body.style,
         abv: req.body.abv,
@@ -355,6 +356,7 @@ app.post(
         aroma: req.body.aroma,
         nameSake: req.body.nameSake,
         notes: req.body.notes,
+        releasedOn: req.body.releasedOn,
       });
 
       // Validate and save the beer
@@ -378,7 +380,7 @@ app.post(
  * @returns category object
  */
 app.post(
-  "/breweries/:brewery/categories",
+  "/breweries/:breweryId/categories",
   [
     verifyJWT,
     // Validation logic
@@ -394,7 +396,7 @@ app.post(
 
     try {
       // .populates makes sure we have full objects, not just id
-      const brewery = await Breweries.findById(req.params.brewery).populate(
+      const brewery = await Breweries.findById(req.params.breweryId).populate(
         "categories"
       );
       if (!brewery) {
@@ -419,7 +421,7 @@ app.post(
       const savedCategory = await category.save();
 
       if (savedCategory) {
-        brewery.categories.push(savedCategory.name);
+        brewery.categories.push(savedCategory);
         await brewery.save();
         res.status(201).json({ savedCategory });
       } else {
@@ -432,8 +434,8 @@ app.post(
 );
 
 /**
- * POST: Returns data on multiple breweries (array of brewery objects)
- * by array of brewery ids only if user is apart of staff array.
+ * POST: Returns data on breweries (array of brewery objects) user is
+ * apart of staff array. getBreweries is nextjs
  * Request body: Bearer token, JSON with array of brewery ids
  * @param breweries
  * @returns array of brewery objects
@@ -449,8 +451,8 @@ app.post("/breweries", verifyJWT, async (req, res) => {
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
-      // staff: staff,
-    });
+      staff: staff,
+    }).populate("categories");
 
     if (breweries.length === 0) {
       return res
@@ -532,6 +534,7 @@ app.get("/users", verifyJWT, (req, res) => {
 app.get("/users/:email", verifyJWT, (req, res) => {
   // condition to find specific user based on username
   Users.findOne({ email: req.params.email })
+    .populate("breweries")
     .then((user) => {
       res.json(user);
     })
@@ -559,7 +562,8 @@ app.get("/breweries", verifyJWT, (req, res) => {
  * @requires passport
  */
 app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
-  Beers.find({ companyId: req.params.breweryId }) // find my companyId
+  Beers.find({ companyId: req.params.breweryId })
+    .populate("category") // find my companyId
     .then((beers) => {
       res.status(201).json(beers);
     })
@@ -609,17 +613,13 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
  * @returns array of beer objects
  * @requires passport
  */
-app.get(
-  "/beers",
-  // verifyJWT,
-  (req, res) => {
-    Beers.find() // .find() grabs data on all documents in collection
-      .then((beers) => {
-        res.status(201).json(beers);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/beers", verifyJWT, (req, res) => {
+  Beers.find() // .find() grabs data on all documents in collection
+    .then((beers) => {
+      res.status(201).json(beers);
+    })
+    .catch(handleError);
+});
 
 /**
  * GET: Returns a list of ALL categories
@@ -627,17 +627,13 @@ app.get(
  * @returns array of categories objects
  * @requires passport
  */
-app.get(
-  "/categories",
-  // verifyJWT,
-  (req, res) => {
-    Categories.find() // .find() grabs data on all documents in collection
-      .then((categories) => {
-        res.status(201).json(categories);
-      })
-      .catch(handleError);
-  }
-);
+app.get("/categories", verifyJWT, (req, res) => {
+  Categories.find() // .find() grabs data on all documents in collection
+    .then((categories) => {
+      res.status(201).json(categories);
+    })
+    .catch(handleError);
+});
 
 //  PUT/ UPDATE REQUEST ********************
 
@@ -650,36 +646,15 @@ app.get(
  */
 app.put(
   "/users/:userId",
-  [
-    // Validation logic
-    verifyJWT,
-    // Minimum value of 5 characters is required
-    check("username", "Username is required").isLength({ min: 5 }),
 
-    // Field can only contain letters and numbers
-    check(
-      "username",
-      "Username contains non-alphanumeric characters - not allowed."
-    ).isAlphanumeric(),
+  // Validation logic
+  verifyJWT,
 
-    // Password is required
-    check("password", "Password is required").not().isEmpty(),
-
-    // Field must be formatted as an email address
-    check("email", "Email does not appear to be valid").isEmail(),
-  ],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json({ errors: errors.array() });
-    }
-    const hashedPassword = Users.hashPassword(req.body.password);
     try {
       const userId = req.params.userId;
       const updateFields = {
         fullName: req.body.fullName,
-        username: req.body.username,
-        password: hashedPassword,
         email: req.body.email,
         breweries: req.body.breweries,
       };
@@ -747,6 +722,8 @@ app.put(
         aroma: req.body.aroma,
         nameSake: req.body.nameSake,
         notes: req.body.notes,
+        image: req.body.image,
+        companyId: breweryId,
       };
 
       // updates by id and only fields that have changed
@@ -793,6 +770,7 @@ app.put(
         admin: req.body.admin,
         staff: req.body.staff,
         categories: req.body.categories,
+        image: req.body.image,
       };
 
       const existingBrewery = await Breweries.findById(breweryId);
@@ -860,9 +838,10 @@ app.put(
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const newOwnerId = req.params.newOwnerId;
+    const owner = req.user._id;
 
     try {
-      const brewery = await Breweries.findById(breweryId);
+      const brewery = await Breweries.findById(breweryId).populate("owner");
 
       // Check if brewery exists
       if (!brewery) {
@@ -876,8 +855,19 @@ app.put(
           .json({ error: "New owner must be a member of the staff" });
       }
 
+      // Check if current user is the owner
+      if (brewery.owner._id.toString() !== owner) {
+        return res.status(400).json({
+          error: `${brewery.owner.fullName} is the only one allowed to reassign a new owner to ${brewery.companyName}`,
+        });
+      }
+
       // Update the brewery document
-      await Breweries.findByIdAndUpdate(breweryId, { owner: newOwnerId });
+      await Breweries.findByIdAndUpdate(
+        breweryId,
+        { owner: newOwnerId },
+        { new: true }
+      );
 
       return res.status(200).json({ message: "Owner updated successfully" });
     } catch (error) {
@@ -902,6 +892,7 @@ app.delete(
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const userId = req.params.userId;
+    const authUser = req.user._id;
 
     try {
       const brewery = await Breweries.findById(breweryId);
@@ -923,6 +914,16 @@ app.delete(
         return res
           .status(400)
           .json({ error: "Owner can not be removed from admins" });
+      }
+
+      // Check if authUser is the owner or another admin
+      if (
+        authUser !== brewery.owner.toString() ||
+        !brewery.admin.includes(authUser)
+      ) {
+        return res.status(400).json({
+          error: "Only the owner or another admin can remove an admin",
+        });
       }
 
       // Update the brewery document
@@ -990,18 +991,37 @@ app.delete(
   "/breweries/:breweryId/beers/:beerId",
   verifyJWT,
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json({ errors: errors.array() });
-    }
+    const authUser = req.user._id;
+    const { breweryId, beerId } = req.params;
+
     try {
-      const beer = await Beers.findByIdAndDelete(req.params.beerId);
+      const brewery = await Breweries.findById(breweryId);
+
+      if (!brewery) {
+        return res.status(400).json({
+          error: `Brewery was not found.`,
+        });
+      }
+
+      // Check if authUser is the owner or another admin
+      if (
+        authUser.toString() !== brewery.owner.toString() ||
+        !brewery.admin.includes(authUser.toString())
+      ) {
+        return res.status(400).json({
+          error: "Only the owner or another admin can delete a beer",
+        });
+      }
+
+      const beer = await Beers.findOneAndDelete({
+        _id: beerId,
+        companyId: breweryId,
+      });
 
       if (!beer) {
-        res.status(400).send(`Beer was not found.`);
-      } else {
-        res.status(200).send(`${beer.name} was deleted.`);
+        return res.status(400).send(`Beer was not found.`);
       }
+      res.status(200).send(`${beer.name} was deleted.`);
     } catch (error) {
       handleError(res, error);
     }
@@ -1022,7 +1042,7 @@ app.delete(
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const userId = req.params.userId;
-
+    const authUser = req.user._id;
     try {
       const brewery = await Breweries.findById(breweryId);
       const user = await Users.findById(userId);
@@ -1050,6 +1070,16 @@ app.delete(
           .json({ error: "Staff member not found in this brewery" });
       }
 
+      // Check if authUser is the owner or another admin
+      if (
+        authUser !== brewery.owner.toString() ||
+        !brewery.admin.includes(authUser)
+      ) {
+        return res.status(400).json({
+          error: "Only the owner or another admin can remove staff members",
+        });
+      }
+
       // Update the brewery document
       await Breweries.findByIdAndUpdate(breweryId, {
         $pull: { staff: userId, admin: userId },
@@ -1069,7 +1099,7 @@ app.delete(
 
       return res
         .status(200)
-        .json({ message: "Staff member removed successfully" });
+        .json({ message: `${user.fullName} successfully removed from staff.` });
     } catch (error) {
       handleError(res, error);
     }
@@ -1103,7 +1133,7 @@ app.delete(
       if (!user.breweries.includes(breweryId)) {
         return res
           .status(400)
-          .json({ error: "Brewery not found in user's breweries" });
+          .json({ error: `Brewery not found in your breweries` });
       }
 
       // Update user's breweries array
@@ -1112,7 +1142,7 @@ app.delete(
       });
 
       return res.status(200).json({
-        message: "Brewery removed successfully from user's breweries",
+        message: "Brewery removed successfully from your breweries",
       });
     } catch (error) {
       handleError(res, error);
@@ -1129,7 +1159,7 @@ app.delete(
  */
 app.delete("/users/:userId", verifyJWT, async (req, res) => {
   const userId = req.params.userId;
-
+  const authUser = req.user._id;
   try {
     const user = await Users.findById(userId);
 
@@ -1147,6 +1177,11 @@ app.delete("/users/:userId", verifyJWT, async (req, res) => {
       });
     }
 
+    if (authUser !== userId) {
+      return res
+        .status(400)
+        .json({ error: `Only ${user.fullName} can delete this account` });
+    }
     // Delete user's account
     await Users.findByIdAndDelete(userId);
 

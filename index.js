@@ -421,7 +421,7 @@ app.post(
       const savedCategory = await category.save();
 
       if (savedCategory) {
-        brewery.categories.push(savedCategory);
+        brewery.categories.push(savedCategory._id);
         await brewery.save();
         res.status(201).json({ savedCategory });
       } else {

@@ -614,7 +614,8 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
  * @requires passport
  */
 app.get("/beers", verifyJWT, (req, res) => {
-  Beers.find() // .find() grabs data on all documents in collection
+  Beers.find()
+    .populate("category") // .find() grabs data on all documents in collection
     .then((beers) => {
       res.status(201).json(beers);
     })

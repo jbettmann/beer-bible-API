@@ -243,7 +243,7 @@ app.post(
  * @returns brewery object
  */
 app.post(
-  "/users/:userId/breweries",
+  "/breweries",
   [
     verifyJWT,
     // Validation logic
@@ -280,7 +280,7 @@ app.post(
       const brewery = new Breweries({
         companyName: req.body.companyName,
         image: req.body.image,
-        owner: req.params.userId,
+        owner: req.user._id,
         admin: [],
         staff: [],
         categories: [],

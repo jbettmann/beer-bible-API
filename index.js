@@ -264,7 +264,9 @@ app.post(
     }
 
     try {
-      const user = await Users.findById(req.user._id);
+      const user = await Users.findById(req.user.id);
+      console.log(req.user);
+
       if (!user) {
         return res.status(400).send("User not found");
       }
@@ -276,11 +278,10 @@ app.post(
       if (existingBrewery) {
         return res.status(400).send("Brewery already exists");
       }
-
       const brewery = new Breweries({
         companyName: req.body.companyName,
         image: req.body.image,
-        owner: req.user._id,
+        owner: req.user.id,
         admin: [],
         staff: [],
         categories: [],
@@ -878,7 +879,7 @@ app.put(
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const newOwnerId = req.params.newOwnerId;
-    const owner = req.user._id;
+    const owner = req.user.id;
 
     try {
       const brewery = await Breweries.findById(breweryId).populate("owner");
@@ -932,7 +933,7 @@ app.delete(
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const userId = req.params.userId;
-    const authUser = req.user._id;
+    const authUser = req.user.id;
 
     try {
       const brewery = await Breweries.findById(breweryId);
@@ -999,7 +1000,7 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
     }
 
     // Check if the user who made the request is the owner of the brewery
-    if (req.user._id !== brewery.owner.toString()) {
+    if (req.user.id !== brewery.owner.toString()) {
       return res
         .status(403)
         .send("You are not authorized to delete this brewery.");
@@ -1031,7 +1032,7 @@ app.delete(
   "/breweries/:breweryId/beers/:beerId",
   verifyJWT,
   async (req, res) => {
-    const authUser = req.user._id;
+    const authUser = req.user.id;
     const { breweryId, beerId } = req.params;
 
     try {
@@ -1082,7 +1083,7 @@ app.delete(
   async (req, res) => {
     const breweryId = req.params.breweryId;
     const userId = req.params.userId;
-    const authUser = req.user._id;
+    const authUser = req.user.id;
     try {
       const brewery = await Breweries.findById(breweryId);
       const user = await Users.findById(userId);
@@ -1199,7 +1200,7 @@ app.delete(
  */
 app.delete("/users/:userId", verifyJWT, async (req, res) => {
   const userId = req.params.userId;
-  const authUser = req.user._id;
+  const authUser = req.user.id;
   try {
     const user = await Users.findById(userId);
 

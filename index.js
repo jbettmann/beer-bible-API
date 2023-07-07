@@ -264,7 +264,7 @@ app.post(
     }
 
     try {
-      const user = await Users.findById(req.params.user);
+      const user = await Users.findById(req.user._id);
       if (!user) {
         return res.status(400).send("User not found");
       }

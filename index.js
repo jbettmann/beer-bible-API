@@ -243,7 +243,7 @@ app.post(
  * @returns brewery object
  */
 app.post(
-  "/breweries",
+  "/users/:userId/breweries",
   [
     verifyJWT,
     // Validation logic
@@ -265,7 +265,6 @@ app.post(
 
     try {
       const user = await Users.findById(req.user.id);
-      console.log(req.user);
 
       if (!user) {
         return res.status(400).send("User not found");

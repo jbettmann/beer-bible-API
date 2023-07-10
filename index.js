@@ -574,7 +574,7 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
  */
 app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
   // gets user from token verifyJWT
-  const staff = req.user.id;
+  const authUser = req.user.id;
 
   try {
     // checks if brewery exists and if user requesting data is in staff array

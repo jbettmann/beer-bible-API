@@ -436,14 +436,14 @@ app.post(
 app.post("/users/breweries", verifyJWT, async (req, res) => {
   // Note: Changed to POST to allow sending an array of ids
   // gets user from token verifyJWT
-  const staff = req.user.id;
+  const authUser = req.user.id;
   const breweryIds = req.body.breweryIds;
 
   try {
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
-      $or: [{ staff: userId }, { admin: userId }, { owner: userId }],
+      $or: [{ staff: authUser }, { admin: authUser }, { owner: authUser }],
     }).populate("categories");
 
     if (breweries.length === 0) {

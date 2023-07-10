@@ -187,7 +187,7 @@ app.post(
   [
     // Validation logic
     //minimum value of 5 characters are only allowed
-    check("username", "Username is required").isLength({ min: 5 }),
+    // check("username", "Username is required").isLength({ min: 5 }),
 
     // field can only contain letters and numbers
     check(
@@ -221,8 +221,7 @@ app.post(
       const newUser = new Users({
         fullName: req.body.fullName,
         // .create takes and object based on schema
-        username: req.body.username, // remember 'req.body' is request that user sends
-        password: hashedPassword, // Hashes password entered  when registering before storing in MongoDB
+
         email: req.body.email,
         breweries: [],
       });
@@ -247,14 +246,8 @@ app.post(
   [
     verifyJWT,
     // Validation logic
-    //minimum value of 5 characters are only allowed
+    //minimum value of 1 characters are only allowed
     check("companyName", "Company Name is required").not().isEmpty(),
-
-    // field can only contain letters and numbers
-    // check(
-    //   "companyName",
-    //   "Company Name contains non alphanumeric characters - not allowed."
-    // ).isAlphanumeric(),
   ],
   async (req, res) => {
     // check the validation object for errors
@@ -263,6 +256,7 @@ app.post(
       return res.status(422).json({ errors: errors.array() });
     }
 
+    console.log(req.user.id);
     try {
       const user = await Users.findById(req.user.id);
 

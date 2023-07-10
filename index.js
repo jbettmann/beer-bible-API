@@ -443,7 +443,7 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
-      staff: staff,
+      $or: [{ staff: userId }, { admin: userId }, { owner: userId }],
     }).populate("categories");
 
     if (breweries.length === 0) {

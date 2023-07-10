@@ -243,7 +243,7 @@ app.post(
  * @returns brewery object
  */
 app.post(
-  "/users/:userId/breweries",
+  "/breweries",
   [
     verifyJWT,
     // Validation logic
@@ -441,7 +441,7 @@ app.post(
  * @returns array of brewery objects
  * @requires passport
  */
-app.post("/breweries", verifyJWT, async (req, res) => {
+app.post("/users/breweries", verifyJWT, async (req, res) => {
   // Note: Changed to POST to allow sending an array of ids
   // gets user from token verifyJWT
   const staff = req.user.id;

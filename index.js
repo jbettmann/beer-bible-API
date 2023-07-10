@@ -439,6 +439,7 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
   const authUser = req.user.id;
   const breweryIds = req.body.breweryIds;
 
+  console.log({ authUser, breweryIds });
   try {
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({
@@ -579,7 +580,7 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
     // checks if brewery exists and if user requesting data is in staff array
     const brewery = await Breweries.findOne({
       _id: req.params.breweryId,
-      staff: staff,
+      $or: [{ staff: authUser }, { owner: authUser }],
     })
       .populate("staff")
       .populate("categories")

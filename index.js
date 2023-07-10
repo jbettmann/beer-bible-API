@@ -187,7 +187,7 @@ app.post(
   [
     // Validation logic
     //minimum value of 5 characters are only allowed
-    // check("username", "Username is required").isLength({ min: 5 }),
+    check("username", "Username is required").isLength({ min: 5 }),
 
     // field can only contain letters and numbers
     check(
@@ -215,8 +215,6 @@ app.post(
           .status(400)
           .send(`An account with ${req.body.email} already exists`);
       }
-
-      const hashedPassword = Users.hashPassword(req.body.password);
 
       const newUser = new Users({
         fullName: req.body.fullName,

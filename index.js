@@ -321,8 +321,7 @@ app.post(
 
     try {
       const brewery = await Breweries.findById(req.params.breweryId);
-      console.log({ userId, brewery });
-      console.log(req.params.breweryId);
+
       if (!brewery) {
         return res.status(400).send("Brewery not found");
       }
@@ -418,7 +417,7 @@ app.post(
       if (savedCategory) {
         brewery.categories.push(savedCategory._id);
         await brewery.save();
-        res.status(201).json({ savedCategory });
+        res.status(201).json(savedCategory);
       } else {
         throw new Error("Category save operation failed");
       }

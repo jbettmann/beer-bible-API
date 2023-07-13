@@ -341,6 +341,7 @@ app.post(
         name: req.body.name,
         style: req.body.style,
         abv: req.body.abv,
+        ibu: req.body.ibu,
         category: req.body.category,
         malt: req.body.malt,
         hops: req.body.hops,

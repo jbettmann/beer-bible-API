@@ -317,15 +317,18 @@ app.post(
     if (!errors.isEmpty()) {
       return res.status(422).json({ errors: errors.array() });
     }
+    const userId = req.user.id;
 
     try {
       const brewery = await Breweries.findById(req.params.breweryId);
+      console.log({ userId, brewery });
+      console.log(req.params.breweryId);
       if (!brewery) {
         return res.status(400).send("Brewery not found");
       }
 
       // Check if the user is the owner or an admin of the brewery
-      const userId = req.user.id;
+
       if (
         brewery.owner.toString() !== userId ||
         !brewery.admin.includes(userId)
@@ -336,7 +339,7 @@ app.post(
       }
 
       const beer = new Beers({
-        companyId: req.params.brewery,
+        companyId: req.params.breweryId,
         image: req.body.image,
         name: req.body.name,
         style: req.body.style,

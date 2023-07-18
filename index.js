@@ -714,11 +714,13 @@ app.put(
         category: req.body.category,
         malt: req.body.malt,
         hops: req.body.hops,
-        flavorNotes: req.body.flavorNotes,
-        aroma: req.body.aroma,
+        description: req.body.description,
+        // aroma: req.body.aroma,
         nameSake: req.body.nameSake,
         notes: req.body.notes,
         image: req.body.image,
+        archived: req.body.archived,
+        releasedOn: req.body.releasedOn,
         companyId: breweryId,
       };
 

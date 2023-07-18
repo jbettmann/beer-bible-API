@@ -37,7 +37,12 @@ const beerSchema = mongoose.Schema(
     abv: Number,
     ibu: Number,
     category: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Category",
+        required: true,
+        default: [],
+      },
     ],
     malt: [String],
     hops: [String],

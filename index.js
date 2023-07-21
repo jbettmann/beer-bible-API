@@ -733,7 +733,7 @@ app.put(
         return res.status(400).send("Beer not found");
       }
 
-      res.status(200).json({ existingBeer });
+      res.status(200).json(existingBeer);
     } catch (error) {
       handleError(res, error);
     }

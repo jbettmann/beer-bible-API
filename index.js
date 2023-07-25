@@ -358,7 +358,7 @@ app.post(
       const savedBeer = await beer.save();
 
       if (savedBeer) {
-        res.status(201).json({ savedBeer });
+        res.status(201).json(savedBeer);
       } else {
         throw new Error("Beer save operation failed");
       }
@@ -772,7 +772,7 @@ app.put(
         return res.status(400).send("Category not found");
       }
 
-      res.status(200).json({ updatedCategory });
+      res.status(200).json(updatedCategory);
     } catch (error) {
       handleError(res, error);
     }

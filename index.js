@@ -1100,7 +1100,7 @@ app.delete(
 
       // Check if there are beers associated with this category
       const beersWithCategory = await Beers.find({
-        categories: categoryId, // Adjusted here: assuming categories field is an array in Beers schema
+        category: categoryId, // Adjusted here: assuming categories field is an array in Beers schema
         companyId: breweryId,
       });
 

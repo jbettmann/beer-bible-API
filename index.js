@@ -1116,7 +1116,7 @@ app.delete(
       });
 
       if (!category) {
-        return res.status(400).send(`Category was not found.`);
+        return res.status(400).send(`${category.name} category was not found.`);
       }
 
       res.status(200).send(`${category.name} was deleted.`);

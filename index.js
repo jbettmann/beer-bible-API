@@ -1066,6 +1066,67 @@ app.delete(
 );
 
 /**
+ * DELETE: Deletes category
+ * Request body: Bearer token
+ * @param breweryId
+ * @param categoryId
+ * @returns success message
+ */
+app.delete(
+  "/breweries/:breweryId/categories/:categoryId",
+  verifyJWT,
+  async (req, res) => {
+    const authUser = req.user.id;
+    const { breweryId, categoryId } = req.params;
+
+    try {
+      const brewery = await Breweries.findById(breweryId);
+
+      if (!brewery) {
+        return res.status(400).json({
+          error: `Brewery was not found.`,
+        });
+      }
+
+      // Check if authUser is the owner or another admin
+      if (
+        authUser.toString() !== brewery.owner.toString() ||
+        !brewery.admin.includes(authUser.toString())
+      ) {
+        return res.status(400).json({
+          error: "Only the owner or another admin can delete a category",
+        });
+      }
+
+      // Check if there are beers associated with this category
+      const beersWithCategory = await Beers.find({
+        categories: categoryId, // Adjusted here: assuming categories field is an array in Beers schema
+        companyId: breweryId,
+      });
+
+      if (beersWithCategory.length > 0) {
+        return res.status(400).json({
+          error:
+            "Category cannot be deleted while it still has associated beers",
+        });
+      }
+
+      const category = await Categories.findOneAndDelete({
+        _id: categoryId,
+      });
+
+      if (!category) {
+        return res.status(400).send(`Category was not found.`);
+      }
+
+      res.status(200).send(`${category.name} was deleted.`);
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
  * DELETE: Deletes User from Breweries Staff array
  * Request body: Bearer token
  * @param breweryId

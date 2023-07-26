@@ -1119,7 +1119,7 @@ app.delete(
         return res.status(400).send(`${category.name} category was not found.`);
       }
 
-      res.status(200).send(`${category.name} was deleted.`);
+      res.status(200).json({ message: `${category.name} was deleted.` });
     } catch (error) {
       handleError(res, error);
     }

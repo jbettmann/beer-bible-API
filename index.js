@@ -475,6 +475,10 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
         .json({ message: `${user.email} already exists in brewery!` });
     }
     brewery.staff.push(req.user.id);
+    if (invite.isAdmin) {
+      // check if user is an admin
+      brewery.admin.push(req.user.id); // add user to admins
+    }
     await brewery.save();
 
     user.breweries.push(brewery._id);

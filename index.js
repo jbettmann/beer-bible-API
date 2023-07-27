@@ -118,7 +118,7 @@ let handleError = (res, err) => {
 app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
   try {
     const breweryId = req.params.breweryId;
-    const { email } = req.body; // email of the user to be invited
+    const { email, isAdmin } = req.body; // email of the user to be invited
 
     // Fetch the brewery from the database
     const brewery = await Breweries.findById(breweryId).populate("owner");
@@ -132,6 +132,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
       token,
       brewery: breweryId,
       sender: req.user.id,
+      isAdmin: isAdmin,
     }).save();
 
     // Send email here

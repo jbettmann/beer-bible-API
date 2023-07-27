@@ -5,7 +5,8 @@ const express = require("express"),
   mongoose = require("mongoose"), // Intergrates mongoose into file
   Models = require("./models.js"), // allows access to database schema
   cors = require("cors"), // Cross-Orgin Resourse Sharing
-  jwt = require("jsonwebtoken");
+  jwt = require("jsonwebtoken"),
+  nodemailer = require("nodemailer");
 
 require("dotenv").config();
 
@@ -120,7 +121,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     const { email } = req.body; // email of the user to be invited
 
     // Fetch the brewery from the database
-    const brewery = await Breweries.findById(breweryId);
+    const brewery = await Breweries.findById(breweryId).populate("owner");
     if (!brewery) {
       return res.status(404).json({ message: "Brewery not found." });
     }
@@ -136,40 +137,24 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     // Send email here
     const inviteUrl = `https://beer-bible-api.vercel.app/accept-invite?token=${token}`;
 
-    // Specify email parameters
-    const emailParams = {
-      Destination: {
-        /* required */ ToAddresses: [email],
+    let transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USERNAME, // Your email address
+        pass: process.env.EMAIL_PASSWORD, // Your email password
       },
-      Message: {
-        /* required */
-        Body: {
-          /* required */
-          Text: {
-            Charset: "UTF-8",
-            Data: `You have been invited to join ${brewery.companyName}! Click the link to join: ${inviteUrl}`,
-          },
-        },
-        Subject: {
-          Charset: "UTF-8",
-          Data: "Brewery Invitation",
-        },
-      },
-      Source: "hello@jordanbettmann.com" /* required */,
-      ReplyToAddresses: ["hello@jordanbettmann.com"],
-    };
+    });
 
-    // Create the promise and SES service object
-    const sendPromise = ses.sendEmail(emailParams);
+    // send mail with defined transport object
+    let info = await transporter.sendMail({
+      from: '"BeerFlo" <no-reply@beerflo.com>', // sender address
+      to: email, // list of receivers
+      subject: `Join ${brewery.companyName} on BeerFlo!`, // Subject line
+      text: `You have been invited to join ${brewery.companyName}! Accept Invite! ${inviteUrl}`, // plain text body
+      html: `<p>You have been invited to join ${brewery.companyName}! <a href="${inviteUrl}">Accept Invite!</a></p>`, // html body
+    });
 
-    // Handle promise's fulfilled/rejected states
-    sendPromise
-      .then(function (data) {
-        console.log(data.MessageId);
-      })
-      .catch(function (err) {
-        console.error(err, err.stack);
-      });
+    console.log("Message sent: %s", info.messageId);
 
     res.status(200).json({ message: "Invitation sent." });
   } catch (error) {
@@ -332,9 +317,7 @@ app.post(
         brewery.owner.toString() !== userId ||
         !brewery.admin.includes(userId)
       ) {
-        return res
-          .status(403)
-          .send("User is not authorized to add a beer to this brewery");
+        return res.status(403).send(`Only admin or owner can create a beer`);
       }
 
       const beer = new Beers({

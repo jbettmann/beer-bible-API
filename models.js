@@ -1,3 +1,4 @@
+const { body } = require("express-validator");
 const mongoose = require("mongoose"),
   bcrypt = require("bcrypt"); // hashes user password and compares everytime user logs in
 
@@ -68,6 +69,7 @@ const inviteSchema = mongoose.Schema({
     required: true,
   },
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  isAdmin: Boolean,
   createdAt: { type: Date, required: true, default: Date.now, expires: "24h" },
 });
 

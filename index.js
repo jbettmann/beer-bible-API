@@ -1107,6 +1107,13 @@ app.delete(
         return res.status(400).send(`${category.name} category was not found.`);
       }
 
+      // If the category exists in the brewery's categories array, remove it
+      if (brewery.categories.includes(categoryId)) {
+        await Breweries.findByIdAndUpdate(breweryId, {
+          $pull: { categories: categoryId },
+        });
+      }
+
       res.status(200).json({ message: `${category.name} was deleted.` });
     } catch (error) {
       handleError(res, error);

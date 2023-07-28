@@ -9,7 +9,7 @@ const express = require("express"),
   nodemailer = require("nodemailer");
 
 require("dotenv").config();
-const { GoogleAuth } = require("node-google-oauth2");
+const { OAuth2Client } = require("google-auth-library");
 
 function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -139,12 +139,17 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     // Send email here
     const inviteUrl = `https://beer-bible-api.vercel.app/accept-invite?token=${token}`;
 
-    const googleAuth = new GoogleAuth({
-      clientId: process.env.GMAIL_CLIENT,
-      clientSecret: process.env.GMAIL_SECRET,
-      refreshToken: process.env.GMAIL_OAUTH_REFRESH,
+    const oauth2Client = new OAuth2Client(
+      process.env.GMAIL_CLIENT,
+      process.env.GMAIL_SECRET,
+      "https://developers.google.com/oauthplayground" // This field is for the redirect URL
+    );
+
+    oauth2Client.setCredentials({
+      refresh_token: process.env.GMAIL_OAUTH_REFRESH,
     });
 
+    const response = await oauth2Client.refreshAccessToken();
     let transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -153,7 +158,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
         clientId: process.env.GMAIL_CLIENT,
         clientSecret: process.env.GMAIL_SECRET,
         refreshToken: process.env.GMAIL_OAUTH_REFRESH,
-        accessToken: googleAuth.accessToken, // access token provided by the library
+        accessToken: response.credentials.access_token, // Access token obtained from the OAuth2 client
       },
     });
 

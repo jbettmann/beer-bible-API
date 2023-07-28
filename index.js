@@ -9,6 +9,7 @@ const express = require("express"),
   nodemailer = require("nodemailer");
 
 require("dotenv").config();
+const { GoogleAuth } = require("node-google-oauth2");
 
 function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -138,6 +139,12 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     // Send email here
     const inviteUrl = `https://beer-bible-api.vercel.app/accept-invite?token=${token}`;
 
+    const googleAuth = new GoogleAuth({
+      clientId: process.env.GMAIL_CLIENT,
+      clientSecret: process.env.GMAIL_SECRET,
+      refreshToken: process.env.GMAIL_OAUTH_REFRESH,
+    });
+
     let transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -146,6 +153,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
         clientId: process.env.GMAIL_CLIENT,
         clientSecret: process.env.GMAIL_SECRET,
         refreshToken: process.env.GMAIL_OAUTH_REFRESH,
+        accessToken: googleAuth.accessToken, // access token provided by the library
       },
     });
 

@@ -496,11 +496,9 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
     // Add the user to the brewery's staff list and vice versa
     const brewery = await Breweries.findById(invite.brewery);
     const user = await Users.findById(req.user.id);
-    const existingStaff = brewery.staff.includes(req.user.id);
-    if (existingStaff) {
-      return res
-        .status(400)
-        .json({ message: `${user.email} already exists in brewery!` });
+
+    if (!brewery || !user) {
+      return res.status(400).json({ message: `User or Brewery don't exists!` });
     }
     brewery.staff.push(req.user.id);
     if (invite.isAdmin) {

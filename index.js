@@ -141,8 +141,11 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     let transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.EMAIL_USERNAME, // Your email address
-        pass: process.env.EMAIL_PASSWORD, // Your email password
+        type: "OAuth2",
+        user: process.env.GMAIL_EMAIL,
+        clientId: process.env.GMAIL_CLIENT,
+        clientSecret: process.env.GMAIL_SECRET,
+        refreshToken: process.env.GMAIL_OAUTH_REFRESH,
       },
     });
 

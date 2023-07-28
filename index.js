@@ -122,9 +122,18 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     const { email, isAdmin } = req.body; // email of the user to be invited
 
     // Fetch the brewery from the database
-    const brewery = await Breweries.findById(breweryId).populate("owner");
+    const brewery = await Breweries.findById(breweryId)
+      .populate("owner")
+      .populate("staff");
     if (!brewery) {
       return res.status(404).json({ message: "Brewery not found." });
+    }
+
+    // check if invitee is already a staff member
+    if (brewery.staff.some((staffMember) => staffMember.email === email)) {
+      return res.status(400).json({
+        message: `${email} is already a staff member of ${brewery.companyName}.`,
+      });
     }
 
     // Generate a random token and create an invite record in the database

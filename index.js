@@ -186,7 +186,9 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
       isAdmin: isAdmin,
     }).save();
 
-    res.status(200).json({ message: "Invitation sent." });
+    res
+      .status(200)
+      .json({ message: `Invitation sent to ${email}`, email: email });
   } catch (error) {
     handleError(res, error);
   }

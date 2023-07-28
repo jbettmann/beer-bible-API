@@ -129,12 +129,6 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 
     // Generate a random token and create an invite record in the database
     const token = crypto.randomBytes(16).toString("hex");
-    const invite = await new Invites({
-      token,
-      brewery: breweryId,
-      sender: req.user.id,
-      isAdmin: isAdmin,
-    }).save();
 
     // Send email here
     const inviteUrl = `https://beer-bible-api.vercel.app/accept-invite?token=${token}`;
@@ -172,6 +166,13 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     });
 
     console.log("Message sent: %s", info.messageId);
+
+    const invite = await new Invites({
+      token,
+      brewery: breweryId,
+      sender: req.user.id,
+      isAdmin: isAdmin,
+    }).save();
 
     res.status(200).json({ message: "Invitation sent." });
   } catch (error) {

@@ -513,7 +513,7 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
     // Delete the invite from the database
     await invite.remove();
 
-    res.status(200).json({ message: "Invitation accepted." });
+    res.status(200).json({ message: "Invitation accepted.", brewery: brewery });
   } catch (error) {
     handleError(res, error);
   }

@@ -140,7 +140,8 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     const token = crypto.randomBytes(16).toString("hex");
 
     // Send email here
-    const inviteUrl = `https://beer-bible-api.vercel.app/accept-invite?token=${token}`;
+    const inviteUrl = `http://localhost:3000/accept-invite?token=${token}`;
+    // `https://beer-bible-api.vercel.app/accept-invite?token=${token}`
 
     const oauth2Client = new OAuth2Client(
       process.env.GMAIL_CLIENT,

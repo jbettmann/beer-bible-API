@@ -162,7 +162,9 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
       to: email, // list of receivers
       subject: `Join ${brewery.companyName} on BeerFlo!`, // Subject line
       text: `You have been invited to join ${brewery.companyName}! Accept Invite! ${inviteUrl}`, // plain text body
-      html: `<p>You have been invited to join ${brewery.companyName}! <a href="${inviteUrl}">Accept Invite!</a></p>`, // html body
+      html: `<h3>You have been invited!</h3> 
+      <p>${brewery.companyName} wants you to join their team on BeerFlo!</p>
+      <a href="${inviteUrl}" style="display: inline-block; font-weight: 400; color: #fff; text-align: center; vertical-align: middle; cursor: pointer; background-color: #007bff; border: 1px solid transparent; padding: .375rem .75rem; font-size: 1rem; line-height: 1.5; border-radius: .25rem; transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out; text-decoration: none;">Join The Crew!</a>`, // html body
     });
 
     console.log("Message sent: %s", info.messageId);

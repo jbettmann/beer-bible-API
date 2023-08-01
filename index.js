@@ -346,7 +346,7 @@ app.post(
       // Check if the user is the owner or an admin of the brewery
 
       if (
-        brewery.owner.toString() !== userId.toString() ||
+        brewery.owner.toString() !== userId.toString() &&
         !brewery.admin.includes(userId)
       ) {
         return res.status(403).send(`Only admin or owner can create a beer`);
@@ -972,7 +972,7 @@ app.delete(
 
       // Check if authUser is the owner or another admin
       if (
-        authUser.toString() !== brewery.owner.toString() ||
+        authUser.toString() !== brewery.owner.toString() &&
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
@@ -1059,7 +1059,7 @@ app.delete(
 
       // Check if authUser is the owner or another admin
       if (
-        authUser.toString() !== brewery.owner.toString() ||
+        authUser.toString() !== brewery.owner.toString() &&
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
@@ -1107,7 +1107,7 @@ app.delete(
 
       // Check if authUser is the owner or another admin
       if (
-        authUser.toString() !== brewery.owner.toString() ||
+        authUser.toString() !== brewery.owner.toString() &&
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
@@ -1194,7 +1194,7 @@ app.delete(
 
       // Check if authUser is the owner or another admin
       if (
-        authUser.toString() !== brewery.owner.toString() ||
+        authUser.toString() !== brewery.owner.toString() &&
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({

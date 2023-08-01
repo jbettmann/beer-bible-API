@@ -503,6 +503,18 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
     if (!brewery || !user) {
       return res.status(400).json({ message: `User or Brewery don't exists!` });
     }
+
+    // Check if the user is already an owner, admin, or staff
+    if (
+      brewery.owner.toString() === req.user.id ||
+      brewery.admin.includes(req.user.id) ||
+      brewery.staff.includes(req.user.id)
+    ) {
+      return res.status(400).json({
+        message: `You are already apart of the ${brewery.companyName} brewery`,
+      });
+    }
+
     brewery.staff.push(req.user.id);
     if (invite.isAdmin) {
       // check if user is an admin

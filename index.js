@@ -345,12 +345,11 @@ app.post(
 
       // Check if the user is the owner or an admin of the brewery
 
-      if (brewery.owner != userId || !brewery.admin.includes(userId)) {
-        return res
-          .status(403)
-          .send(
-            `Only admin or owner can create a beer ${brewery.owner.toString()} ${userId}`
-          );
+      if (
+        brewery.owner.toString() !== userId.toString() ||
+        !brewery.admin.includes(userId)
+      ) {
+        return res.status(403).send(`Only admin or owner can create a beer`);
       }
 
       const beer = new Beers({
@@ -973,7 +972,7 @@ app.delete(
 
       // Check if authUser is the owner or another admin
       if (
-        authUser !== brewery.owner.toString() ||
+        authUser.toString() !== brewery.owner.toString() ||
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
@@ -1014,7 +1013,7 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
     }
 
     // Check if the user who made the request is the owner of the brewery
-    if (req.user.id !== brewery.owner.toString()) {
+    if (req.user.id.toString() !== brewery.owner.toString()) {
       return res
         .status(403)
         .send("You are not authorized to delete this brewery.");
@@ -1061,7 +1060,7 @@ app.delete(
       // Check if authUser is the owner or another admin
       if (
         authUser.toString() !== brewery.owner.toString() ||
-        !brewery.admin.includes(authUser.toString())
+        !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
           error: "Only the owner or another admin can delete a beer",
@@ -1109,7 +1108,7 @@ app.delete(
       // Check if authUser is the owner or another admin
       if (
         authUser.toString() !== brewery.owner.toString() ||
-        !brewery.admin.includes(authUser.toString())
+        !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
           error: "Only the owner or another admin can delete a category",
@@ -1180,7 +1179,7 @@ app.delete(
       }
 
       // Check if user is owner of brewery
-      if (brewery.owner.toString() === userId) {
+      if (brewery.owner.toString() === userId.toString()) {
         return res
           .status(400)
           .json({ error: "Owner cannot be removed from staff" });
@@ -1195,7 +1194,7 @@ app.delete(
 
       // Check if authUser is the owner or another admin
       if (
-        authUser !== brewery.owner.toString() ||
+        authUser.toString() !== brewery.owner.toString() ||
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({

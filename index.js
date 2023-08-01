@@ -349,7 +349,11 @@ app.post(
         brewery.owner.toString() !== userId ||
         !brewery.admin.includes(userId)
       ) {
-        return res.status(403).send(`Only admin or owner can create a beer`);
+        return res
+          .status(403)
+          .send(
+            `Only admin or owner can create a beer ${brewery.owner.toString()} ${userId}}`
+          );
       }
 
       const beer = new Beers({

@@ -345,14 +345,11 @@ app.post(
 
       // Check if the user is the owner or an admin of the brewery
 
-      if (
-        brewery.owner.toString() !== userId ||
-        !brewery.admin.includes(userId)
-      ) {
+      if (brewery.owner != userId || !brewery.admin.includes(userId)) {
         return res
           .status(403)
           .send(
-            `Only admin or owner can create a beer ${brewery.owner.toString()} ${userId}}`
+            `Only admin or owner can create a beer ${brewery.owner.toString()} ${userId}`
           );
       }
 

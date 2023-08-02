@@ -456,7 +456,6 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
   const authUser = req.user.id;
   const breweryIds = req.body.breweryIds;
 
-  console.log({ authUser, breweryIds });
   try {
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({

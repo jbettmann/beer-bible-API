@@ -769,6 +769,67 @@ app.put(
 );
 
 /**
+ * PUT: Update beer category
+ * Request body: Bearer token, updated category info
+ * @param beerId
+ * @param breweryId
+ * @returns beer object with updated category
+ * @requires passport
+ */
+app.put(
+  "/breweries/:breweryId/beers/:beerId/category",
+  [
+    verifyJWT,
+    // Ensure the category is provided
+    check("category", "Category is required").not().isEmpty().isArray(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+
+    try {
+      const beerId = req.params.beerId;
+      const breweryId = req.params.breweryId;
+
+      const beer = await Beers.findById(beerId);
+      if (!beer || beer.companyId.toString() !== breweryId) {
+        return res
+          .status(400)
+          .send("Beer not found or does not belong to this brewery");
+      }
+
+      // Ensure the categories are valid
+      const categories = req.body.category;
+      for (const categoryId of categories) {
+        const category = await Categories.findById(categoryId);
+        if (!category) {
+          return res.status(400).send("Invalid category ID: " + categoryId);
+        }
+      }
+
+      // Update only the category field
+      const updateFields = {
+        category: categories,
+      };
+
+      const existingBeer = await Beers.findByIdAndUpdate(beerId, updateFields, {
+        new: true,
+      });
+
+      if (!existingBeer) {
+        return res.status(400).send("Beer not found");
+      }
+
+      res.status(200).json(existingBeer);
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
  * PUT: Updates a category; Name is required fields!
  * Request body: Bearer token, JSON with new category name
  * @returns updated category object

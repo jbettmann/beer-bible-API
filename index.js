@@ -816,7 +816,7 @@ app.put(
 
       const existingBeer = await Beers.findByIdAndUpdate(beerId, updateFields, {
         new: true,
-      });
+      }).populate("category");
 
       if (!existingBeer) {
         return res.status(400).send("Beer not found");

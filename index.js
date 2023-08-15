@@ -1272,7 +1272,7 @@ app.delete(
         !brewery.admin.includes(authUser)
       ) {
         return res.status(400).json({
-          error: "Only the owner or another admin can remove staff members",
+          error: "Only the owner or another admin can remove staff members.",
         });
       }
 

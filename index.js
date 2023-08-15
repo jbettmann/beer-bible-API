@@ -690,7 +690,7 @@ app.put(
       });
 
       if (!existingUser) {
-        return res.status(400).send("User not found");
+        return res.status(400).send("User not found.");
       }
 
       res.status(200).json({ existingUser });

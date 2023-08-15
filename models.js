@@ -9,7 +9,6 @@ const userSchema = mongoose.Schema({
   breweries: [
     { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
   ],
-  image: String, // image url from OAuth
 });
 
 // brewery schema

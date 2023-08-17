@@ -272,7 +272,6 @@ app.post(
       return res.status(422).json({ errors: errors.array() });
     }
 
-    console.log(req.user.id);
     try {
       const user = await Users.findById(req.user.id);
 
@@ -921,38 +920,6 @@ app.put(
 );
 
 /**
- * PUT: Add an admin
- * Request body: Bearer token
- * @param breweryId
- * @param userId
- * @returns brewery object with updates
- * @requires passport
- */
-app.put("/breweries/:breweryId/admins/:userId", verifyJWT, async (req, res) => {
-  try {
-    const breweryId = req.params.breweryId;
-    const userId = req.params.userId;
-
-    const brewery = await Breweries.findById(breweryId);
-    const user = await Users.findById(userId);
-
-    // Check if brewery and user exist
-    if (!brewery || !user) {
-      return res.status(400).json({ error: "Brewery or User not found" });
-    }
-
-    // Add user to admin array if not already present
-    await Breweries.findByIdAndUpdate(breweryId, {
-      $addToSet: { admin: userId },
-    });
-
-    res.status(200).json({ message: "Admin added successfully" });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-/**
  * PUT: Update Brewery Owner
  * Request body: Bearer token
  * @param breweryId
@@ -1004,62 +971,25 @@ app.put(
   }
 );
 
-//  DELETE REQUEST *****************
 
 /**
- * DELETE: Deletes admin from breweries admin
- * Request body: Bearer token
  * @param breweryId
  * @param userId
  * @returns success message
  * @requires passport
  */
-app.delete(
-  "/breweries/:breweryId/admin/:userId",
   verifyJWT,
   async (req, res) => {
-    const breweryId = req.params.breweryId;
-    const userId = req.params.userId;
-    const authUser = req.user.id;
-
     try {
       const brewery = await Breweries.findById(breweryId);
 
-      // Check if brewery exists
       if (!brewery) {
         return res.status(400).json({ error: "Brewery not found" });
       }
 
-      // Check if user is an admin
-      if (!brewery.admin.includes(userId)) {
         return res
-          .status(400)
-          .json({ error: "User is not an admin in this brewery" });
-      }
-
-      // Check if user is an owner
-      if (brewery.owner == userId) {
-        return res
-          .status(400)
-          .json({ error: "Owner can not be removed from admins" });
-      }
-
-      // Check if authUser is the owner or another admin
-      if (
-        authUser.toString() !== brewery.owner.toString() &&
-        !brewery.admin.includes(authUser)
-      ) {
-        return res.status(400).json({
-          error: "Only the owner or another admin can remove an admin",
         });
       }
-
-      // Update the brewery document
-      await Breweries.findByIdAndUpdate(breweryId, {
-        $pull: { admin: userId },
-      });
-
-      return res.status(200).json({ message: "Admin removed successfully" });
     } catch (error) {
       handleError(res, error);
     }

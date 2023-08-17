@@ -999,20 +999,54 @@ app.patch(
       }
 
       if (action === "add") {
-        await Breweries.findByIdAndUpdate(breweryId, {
-          $addToSet: { admin: userId },
+        const updatedBrewery = await Breweries.findByIdAndUpdate(
+          breweryId,
+          {
+            $addToSet: { admin: userId },
+          },
+          { new: true }
+        );
+        return res.status(200).json({
+          message: `${user.fullName} successfully added to admin`,
+          brewery: updatedBrewery,
         });
-        return res
-          .status(200)
-          .json({ message: `${user.fullName} successfully added to admin` });
       } else if (action === "remove") {
-        // ... Place your removal checks and logic here ...
-        await Breweries.findByIdAndUpdate(breweryId, {
-          $pull: { admin: userId },
+        // Check if user is an admin
+        if (!brewery.admin.includes(userId)) {
+          return res
+            .status(400)
+            .json({
+              error: `${user.fullName} is not an admin in this ${brewery.companyName}`,
+            });
+        }
+
+        // Check if user is an owner
+        if (brewery.owner == userId) {
+          return res
+            .status(400)
+            .json({ error: "Owner can not be removed from admins" });
+        }
+
+        // Check if authUser is the owner or another admin
+        if (
+          authUser.toString() !== brewery.owner.toString() &&
+          !brewery.admin.includes(authUser)
+        ) {
+          return res.status(400).json({
+            error: "Only the owner or another admin can remove an admin",
+          });
+        }
+        const updatedBrewery = await Breweries.findByIdAndUpdate(
+          breweryId,
+          {
+            $pull: { admin: userId },
+          },
+          { new: true }
+        );
+        return res.status(200).json({
+          message: `${user.fullName} removed from admin`,
+          brewery: updatedBrewery,
         });
-        return res
-          .status(200)
-          .json({ message: `${user.fullName} removed from admin` });
       } else {
         return res.status(400).json({ error: "Invalid action" });
       }

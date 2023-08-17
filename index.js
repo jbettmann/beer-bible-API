@@ -979,8 +979,8 @@ app.put(
  * @param breweryId
  * @param userId
  * @returns success message
- * @requires passport
  */
+
 app.patch(
   "/breweries/:breweryId/admins/:userId",
   verifyJWT,
@@ -1013,11 +1013,9 @@ app.patch(
       } else if (action === "remove") {
         // Check if user is an admin
         if (!brewery.admin.includes(userId)) {
-          return res
-            .status(400)
-            .json({
-              error: `${user.fullName} is not an admin in this ${brewery.companyName}`,
-            });
+          return res.status(400).json({
+            error: `${user.fullName} is not an admin in this ${brewery.companyName}`,
+          });
         }
 
         // Check if user is an owner

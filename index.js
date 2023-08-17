@@ -1035,7 +1035,7 @@ app.patch(
           { new: true }
         );
         return res.status(200).json({
-          message: `${user.fullName} removed from admin`,
+          message: `${user.fullName} has been removed from admin`,
           brewery: updatedBrewery,
         });
       } else {

@@ -989,7 +989,7 @@ app.patch(
       const breweryId = req.params.breweryId;
       const userId = req.params.userId;
       const action = req.body.action; // Either 'add' or 'remove'
-
+      const authUser = req.user.id;
       const brewery = await Breweries.findById(breweryId);
       const user = await Users.findById(userId);
 
@@ -1011,15 +1011,8 @@ app.patch(
           brewery: updatedBrewery,
         });
       } else if (action === "remove") {
-        // Check if user is an admin
-        if (!brewery.admin.includes(userId)) {
-          return res.status(400).json({
-            error: `${user.fullName} is not an admin in this ${brewery.companyName}`,
-          });
-        }
-
         // Check if user is an owner
-        if (brewery.owner == userId) {
+        if (brewery.owner.toString() == userId) {
           return res
             .status(400)
             .json({ error: "Owner can not be removed from admins" });

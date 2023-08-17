@@ -971,30 +971,58 @@ app.put(
   }
 );
 
+//  PATCH REQUEST **************************************************************
 
 /**
+ * PATCH: Toggle admin status for a user in a brewery
+ * Request body: Bearer token, action ('add' or 'remove')
  * @param breweryId
  * @param userId
  * @returns success message
  * @requires passport
  */
+app.patch(
+  "/breweries/:breweryId/admins/:userId",
   verifyJWT,
   async (req, res) => {
     try {
-      const brewery = await Breweries.findById(breweryId);
+      const breweryId = req.params.breweryId;
+      const userId = req.params.userId;
+      const action = req.body.action; // Either 'add' or 'remove'
 
+      const brewery = await Breweries.findById(breweryId);
+      const user = await Users.findById(userId);
+
+      // Check if brewery and user exist
       if (!brewery) {
         return res.status(400).json({ error: "Brewery not found" });
       }
 
-        return res
+      if (action === "add") {
+        await Breweries.findByIdAndUpdate(breweryId, {
+          $addToSet: { admin: userId },
         });
+        return res
+          .status(200)
+          .json({ message: `${user.fullName} successfully added to admin` });
+      } else if (action === "remove") {
+        // ... Place your removal checks and logic here ...
+        await Breweries.findByIdAndUpdate(breweryId, {
+          $pull: { admin: userId },
+        });
+        return res
+          .status(200)
+          .json({ message: `${user.fullName} removed from admin` });
+      } else {
+        return res.status(400).json({ error: "Invalid action" });
       }
     } catch (error) {
       handleError(res, error);
     }
   }
 );
+
+//  DELETE REQUEST *****************
 
 /**
  * DELETE: Deletes brewery

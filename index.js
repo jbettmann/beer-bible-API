@@ -1224,15 +1224,10 @@ app.delete(
     const authUser = req.user.id;
     try {
       const brewery = await Breweries.findById(breweryId);
-      const user = await Users.findById(userId);
 
       // Check if brewery exists
       if (!brewery) {
         return res.status(400).json({ error: "Brewery not found" });
-      }
-      // Check if User exists
-      if (!user) {
-        return res.status(400).json({ error: "User not found" });
       }
 
       // Check if user is owner of brewery
@@ -1264,21 +1259,31 @@ app.delete(
         $pull: { staff: userId, admin: userId },
       });
 
-      // Check if brewery is in users breweries array
-      if (!user.breweries.includes(breweryId)) {
-        return res
-          .status(400)
-          .json({ error: "Brewery not found in users breweries" });
+      // Check if the user exists
+      const user = await Users.findById(userId);
+
+      if (user) {
+        // If user exists, check if the brewery is in the user's breweries array
+        if (!user.breweries.includes(breweryId)) {
+          return res
+            .status(400)
+            .json({ error: "Brewery not found in user's breweries" });
+        }
+
+        // Update the user's breweries array
+        await Users.findByIdAndUpdate(userId, {
+          $pull: { breweries: breweryId },
+        });
+
+        return res.status(200).json({
+          message: `${user.fullName} successfully removed from staff.`,
+        });
+      } else {
+        // If user doesn't exist, just respond with the user ID.
+        return res.status(200).json({
+          message: `Staff member successfully removed from staff.`,
+        });
       }
-
-      // Update users breweries array
-      await Users.findByIdAndUpdate(userId, {
-        $pull: { breweries: breweryId },
-      });
-
-      return res
-        .status(200)
-        .json({ message: `${user.fullName} successfully removed from staff.` });
     } catch (error) {
       handleError(res, error);
     }

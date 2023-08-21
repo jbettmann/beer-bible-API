@@ -1270,6 +1270,13 @@ app.delete(
             .json({ error: "Brewery not found in user's breweries" });
         }
 
+        // authUser cannot remove themselves from staff
+        if (userId === authUser.toString()) {
+          return res
+            .status(400)
+            .json({ error: "You cannot remove yourself from staff." });
+        }
+
         // Update the user's breweries array
         await Users.findByIdAndUpdate(userId, {
           $pull: { breweries: breweryId },

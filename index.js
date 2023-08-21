@@ -1255,9 +1255,13 @@ app.delete(
       }
 
       // Update the brewery document
-      await Breweries.findByIdAndUpdate(breweryId, {
-        $pull: { staff: userId, admin: userId },
-      });
+      const updatedBrewery = await Breweries.findByIdAndUpdate(
+        breweryId,
+        {
+          $pull: { staff: userId, admin: userId },
+        },
+        { new: true }
+      );
 
       // Check if the user exists
       const user = await Users.findById(userId);
@@ -1284,11 +1288,13 @@ app.delete(
 
         return res.status(200).json({
           message: `${user.fullName} successfully removed from staff.`,
+          updatedBrewery,
         });
       } else {
         // If user doesn't exist, just respond with the user ID.
         return res.status(200).json({
           message: `Staff member successfully removed from staff.`,
+          updatedBrewery,
         });
       }
     } catch (error) {

@@ -496,7 +496,11 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
     }
 
     // Add the user to the brewery's staff list and vice versa
-    const brewery = await Breweries.findById(invite.brewery);
+    const brewery = await Breweries.findById(invite.brewery)
+      .populate("categories")
+      .populate("owner")
+      .populate("staff")
+      .populate("admin");
     const user = await Users.findById(req.user.id);
 
     if (!brewery || !user) {

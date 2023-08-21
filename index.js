@@ -461,7 +461,11 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
       $or: [{ staff: authUser }, { admin: authUser }, { owner: authUser }],
-    }).populate("categories");
+    })
+      .populate("categories")
+      .populate("owner")
+      .populate("staff")
+      .populate("admin");
 
     if (breweries.length === 0) {
       return res
@@ -496,11 +500,8 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
     }
 
     // Add the user to the brewery's staff list and vice versa
-    const brewery = await Breweries.findById(invite.brewery)
-      .populate("categories")
-      .populate("owner")
-      .populate("staff")
-      .populate("admin");
+    const brewery = await Breweries.findById(invite.brewery);
+
     const user = await Users.findById(req.user.id);
 
     if (!brewery || !user) {

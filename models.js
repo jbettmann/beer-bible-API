@@ -3,57 +3,26 @@ const mongoose = require("mongoose"),
   bcrypt = require("bcrypt"); // hashes user password and compares everytime user logs in
 
 // user schema
-const userSchema = mongoose.Schema(
-  {
-    fullName: { type: String, required: true },
-    email: { type: String, required: true },
-    breweries: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
-    ],
-    image: String, // image url from OAuth
-  },
-  {
-    timestamps: true, // This will create the `createdAt` and `updatedAt` fields automatically
-  }
-);
+const userSchema = mongoose.Schema({
+  fullName: { type: String, required: true },
+  email: { type: String, required: true },
+  breweries: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
+  ],
+  image: String, // image url from OAuth
+});
 
 // brewery schema
-const brewerySchema = mongoose.Schema(
-  {
-    companyName: { type: String, required: true },
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
-    staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
-    categories: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
-    ],
-    notifications: [
-      {
-        userId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-          required: true,
-        },
-        preferences: {
-          newBeerRelease: {
-            email: { type: Boolean, default: true },
-            // push: { type: Boolean, default: false },
-          },
-          // Add more granular notifications as necessary
-        },
-      },
-    ],
-    sendNotifications: { type: Boolean, default: true },
-    image: String, // image/logo url to Supabase storage
-  },
-  {
-    timestamps: true, // This will create the `createdAt` and `updatedAt` fields automatically
-  }
-);
+const brewerySchema = mongoose.Schema({
+  companyName: { type: String, required: true },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+  staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+  categories: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
+  ],
+  image: String, // image/logo url to Supabase storage
+});
 
 // beer schema
 const beerSchema = mongoose.Schema(

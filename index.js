@@ -293,7 +293,6 @@ app.post(
         admin: [],
         staff: [],
         categories: [],
-        notifications: [],
       });
 
       // Validate and save the beer
@@ -466,8 +465,7 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
       .populate("categories")
       .populate("owner")
       .populate("staff")
-      .populate("admin")
-      .populate("notifications");
+      .populate("admin");
 
     if (breweries.length === 0) {
       return res
@@ -517,7 +515,7 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
       brewery.staff.includes(req.user.id)
     ) {
       return res.status(400).json({
-        message: `You are already apart of ${brewery.companyName} brewery`,
+        message: `You are already apart of the ${brewery.companyName} brewery`,
       });
     }
 
@@ -525,23 +523,6 @@ app.get("/accept-invite", verifyJWT, async (req, res) => {
     if (invite.isAdmin) {
       // check if user is an admin
       brewery.admin.push(req.user.id); // add user to admins
-    }
-
-    // Add the new staff member to the notifications array
-    const newUserNotification = { userId: req.user.id };
-
-    // Check if the user is already in the notifications array
-    const userNotificationIndex = brewery.notifications.findIndex(
-      (n) => n.userId.toString() === req.user.id
-    );
-
-    if (userNotificationIndex === -1) {
-      // Only add if they're not already present
-      brewery.notifications.push(newUserNotification);
-    } else {
-      return res.status(400).json({
-        message: `You are already getting notifications from ${brewery.companyName}`,
-      });
     }
     await brewery.save();
 
@@ -639,8 +620,7 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
       .populate("staff")
       .populate("categories")
       .populate("admin")
-      .populate("owner")
-      .populate("notifications");
+      .populate("owner");
 
     if (!brewery) {
       return res
@@ -923,8 +903,6 @@ app.put(
         staff: req.body.staff,
         categories: req.body.categories,
         image: req.body.image,
-        sendNotifications: req.body.sendNotifications,
-        notifications: req.body.notifications,
       };
 
       const existingBrewery = await Breweries.findById(breweryId);

@@ -13,8 +13,14 @@ const userSchema = mongoose.Schema(
     image: String, // image url from OAuth
     notifications: {
       allow: { type: Boolean, default: true }, // or false
-      email: { type: Boolean, default: true },
-      push: { type: Boolean, default: true },
+      newBeerRelease: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true },
+      },
+      beerUpdate: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true },
+      },
       // ... more detailed preferences if needed
     },
   },

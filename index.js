@@ -240,6 +240,7 @@ app.post(
         email: req.body.email,
         breweries: [],
         image: req.body.image,
+        notifications: {},
       });
       // Validate and save the beer
       await newUser.validate();
@@ -687,6 +688,7 @@ app.put(
         email: req.body.email,
         breweries: req.body.breweries,
         image: req.body.image,
+        notifications: req.body.notifications,
       };
 
       const existingUser = await Users.findByIdAndUpdate(userId, updateFields, {

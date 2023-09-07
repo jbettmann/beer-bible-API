@@ -1423,7 +1423,7 @@ app.delete(
       await session.commitTransaction();
 
       return res.status(200).json({
-        message: `${brewery.companyName} successfully removed`,
+        message: "Brewery successfully removed from your breweries",
       });
     } catch (error) {
       // If there was an error, abort the transaction

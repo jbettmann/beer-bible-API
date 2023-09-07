@@ -11,6 +11,7 @@ const express = require("express"),
 require("dotenv").config();
 const { OAuth2Client } = require("google-auth-library");
 
+// MIDDLE WARE ****************************************
 function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -30,6 +31,31 @@ function verifyJWT(req, res, next) {
   }
   return next();
 }
+
+const validateNotifications = (req, res, next) => {
+  const { notifications } = req.body;
+
+  if (!notifications) {
+    return res.status(400).send("Missing notifications object.");
+  }
+
+  const expectedKeys = ["newBeerRelease", "beerUpdate"];
+
+  for (const key of expectedKeys) {
+    if (!notifications[key]) {
+      return res.status(400).send(`Missing ${key} in notifications.`);
+    }
+
+    if (
+      typeof notifications[key].email !== "boolean" ||
+      typeof notifications[key].push !== "boolean"
+    ) {
+      return res.status(400).send(`Invalid values for ${key}.`);
+    }
+  }
+
+  next(); // Move to the next middleware or route handler
+};
 
 mongoose.set("strictQuery", true); // handles undefined paths
 
@@ -708,45 +734,39 @@ app.put(
 
 /**
  * PUT: Update user's notification settings
- * Request body: Bearer token, notification type, and its values (email and push)
+ * Request body: Bearer token and entire notifications object
  * @param userID
  * @returns user object with updated notifications
  */
-app.put("/users/:userId/notifications", verifyJWT, async (req, res) => {
-  try {
-    const userId = req.params.userId;
+app.put(
+  "/users/:userId/notifications",
+  [verifyJWT, validateNotifications],
+  async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const { notifications } = req.body;
 
-    // Example body: { "type": "newBeerRelease", "email": true, "push": false }
-    const { type, email, push } = req.body;
+      const updatedUser = await Users.findByIdAndUpdate(
+        userId,
+        { notifications: notifications },
+        {
+          new: true,
+        }
+      );
 
-    // Validation for the provided type
-    if (!["newBeerRelease", "beerUpdate"].includes(type)) {
-      return res.status(400).send("Invalid notification type.");
-    }
-
-    // Construct the update fields based on the type
-    const updateFields = {
-      [`notifications.${type}.email`]: email,
-      [`notifications.${type}.push`]: push,
-    };
-
-    const updatedUser = await Users.findByIdAndUpdate(
-      userId,
-      { $set: updateFields },
-      {
-        new: true,
+      if (!updatedUser) {
+        return res.status(400).send("User not found.");
       }
-    );
 
-    if (!updatedUser) {
-      return res.status(400).send("User not found.");
+      res.status(200).json({ updatedUser });
+    } catch (error) {
+      if (error.name === "ValidationError") {
+        return res.status(400).send(error.message);
+      }
+      handleError(res, error);
     }
-
-    res.status(200).json({ updatedUser });
-  } catch (error) {
-    handleError(res, error);
   }
-});
+);
 
 /**
  * PUT: Update beer info

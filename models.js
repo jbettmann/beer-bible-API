@@ -2,6 +2,19 @@ const { body } = require("express-validator");
 const mongoose = require("mongoose"),
   bcrypt = require("bcrypt"); // hashes user password and compares everytime user logs in
 
+const notificationSchema = new mongoose.Schema({
+  allow: { type: Boolean, default: true }, // or false
+  newBeerRelease: {
+    email: { type: Boolean, required: true },
+    push: { type: Boolean, required: true },
+  },
+  beerUpdate: {
+    email: { type: Boolean, required: true },
+    push: { type: Boolean, required: true },
+  },
+  // ... other fields
+});
+
 // user schema
 const userSchema = mongoose.Schema(
   {
@@ -11,18 +24,7 @@ const userSchema = mongoose.Schema(
       { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
     ],
     image: String, // image url from OAuth
-    notifications: {
-      allow: { type: Boolean, default: true }, // or false
-      newBeerRelease: {
-        email: { type: Boolean, default: true },
-        push: { type: Boolean, default: true },
-      },
-      beerUpdate: {
-        email: { type: Boolean, default: true },
-        push: { type: Boolean, default: true },
-      },
-      // ... more detailed preferences if needed
-    },
+    notifications: notificationSchema,
   },
   {
     timestamps: true, // This will create the `createdAt` and `updatedAt` fields automatically

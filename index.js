@@ -707,6 +707,48 @@ app.put(
 );
 
 /**
+ * PUT: Update user's notification settings
+ * Request body: Bearer token, notification type, and its values (email and push)
+ * @param userID
+ * @returns user object with updated notifications
+ */
+app.put("/users/:userId/notifications", verifyJWT, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Example body: { "type": "newBeerRelease", "email": true, "push": false }
+    const { type, email, push } = req.body;
+
+    // Validation for the provided type
+    if (!["newBeerRelease", "beerUpdate"].includes(type)) {
+      return res.status(400).send("Invalid notification type.");
+    }
+
+    // Construct the update fields based on the type
+    const updateFields = {
+      [`notifications.${type}.email`]: email,
+      [`notifications.${type}.push`]: push,
+    };
+
+    const updatedUser = await Users.findByIdAndUpdate(
+      userId,
+      { $set: updateFields },
+      {
+        new: true,
+      }
+    );
+
+    if (!updatedUser) {
+      return res.status(400).send("User not found.");
+    }
+
+    res.status(200).json({ updatedUser });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+/**
  * PUT: Update beer info
  * Request body: Bearer token, updated beer info
  * @param beerId

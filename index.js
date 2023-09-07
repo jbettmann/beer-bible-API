@@ -1384,48 +1384,55 @@ app.delete(
   "/users/:userId/breweries/:breweryId",
   verifyJWT,
   async (req, res) => {
-    const userId = req.params.userId;
-    const breweryId = req.params.breweryId;
+    const { userId, breweryId } = req.params;
+
+    // Start a new session for the transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
-      const user = await Users.findById(userId);
-      const brewery = await Breweries.findById(breweryId);
+      // Attempt to update the user's breweries array
+      const userUpdate = await Users.findByIdAndUpdate(
+        userId,
+        {
+          $pull: { breweries: breweryId },
+        },
+        { new: true, session }
+      ); // Include the session in the query to make it part of the transaction
 
-      // Check if user exists
-      if (!user) {
-        return res.status(400).json({ error: "User not found" });
+      // Check if the user update was successful
+      if (!userUpdate) {
+        throw new Error("User not found or update failed");
       }
 
-      // Check if brewery exists
-      if (!brewery) {
-        return res.status(400).json({ error: "Brewery not found" });
-      }
-
-      // Check if brewery is in user's breweries array
-      if (!user.breweries.includes(breweryId)) {
-        return res
-          .status(400)
-          .json({ error: `Brewery not found in your breweries` });
-      }
-
-      // Update user's breweries array
-      await Users.findByIdAndUpdate(userId, {
-        $pull: { breweries: breweryId },
-      });
-
-      // Update the brewery document
-      await Breweries.findByIdAndUpdate(
+      // Attempt to update the brewery's staff and admin arrays
+      const breweryUpdate = await Breweries.findByIdAndUpdate(
         breweryId,
         {
           $pull: { staff: userId, admin: userId },
         },
-        { new: true }
-      );
+        { new: true, session }
+      ); // Include the session in the query
+
+      // Check if the brewery update was successful
+      if (!breweryUpdate) {
+        throw new Error("Brewery not found or update failed");
+      }
+
+      // If both updates were successful, commit the transaction
+      await session.commitTransaction();
+
       return res.status(200).json({
         message: `${brewery.companyName} successfully removed`,
       });
     } catch (error) {
+      // If there was an error, abort the transaction
+      await session.abortTransaction();
+
       handleError(res, error);
+    } finally {
+      // End the session
+      session.endSession();
     }
   }
 );

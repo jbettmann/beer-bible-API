@@ -56,7 +56,7 @@ const validateNotifications = (req, res, next) => {
     }
   }
 
-  next();
+  return next();
 };
 
 mongoose.set("strictQuery", true); // handles undefined paths

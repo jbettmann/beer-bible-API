@@ -36,25 +36,27 @@ const validateNotifications = (req, res, next) => {
   const { notifications } = req.body;
 
   if (!notifications) {
-    return res.status(400).send("Missing notifications object.");
+    return res.status(400).json({ error: "Missing notifications object." });
   }
 
   const expectedKeys = ["newBeerRelease", "beerUpdate"];
 
   for (const key of expectedKeys) {
     if (!notifications[key]) {
-      return res.status(400).send(`Missing ${key} in notifications.`);
+      return res
+        .status(400)
+        .json({ error: `Missing ${key} in notifications.` });
     }
 
     if (
       typeof notifications[key].email !== "boolean" ||
       typeof notifications[key].push !== "boolean"
     ) {
-      return res.status(400).send(`Invalid values for ${key}.`);
+      return res.status(400).json({ error: `Invalid values for ${key}.` });
     }
   }
 
-  next(); // Move to the next middleware or route handler
+  next();
 };
 
 mongoose.set("strictQuery", true); // handles undefined paths
@@ -749,21 +751,19 @@ app.put(
       const updatedUser = await Users.findByIdAndUpdate(
         userId,
         { notifications: notifications },
-        {
-          new: true,
-        }
+        { new: true }
       );
 
       if (!updatedUser) {
-        return res.status(400).send("User not found.");
+        return res.status(400).json({ error: "User not found." });
       }
 
       res.status(200).json({ updatedUser });
     } catch (error) {
       if (error.name === "ValidationError") {
-        return res.status(400).send(error.message);
+        return res.status(400).json({ error: error.message });
       }
-      handleError(res, error);
+      res.status(500).json({ error: "Server error." });
     }
   }
 );

@@ -989,7 +989,7 @@ app.put(
 );
 
 /**
- * PUT: Update Brewery Owner
+ * PUT: Update Brewery Owner / Transfer Ownership
  * Request body: Bearer token
  * @param breweryId
  * @param newOwnerId
@@ -1389,10 +1389,16 @@ app.delete(
 
     try {
       const user = await Users.findById(userId);
+      const brewery = await Breweries.findById(breweryId);
 
       // Check if user exists
       if (!user) {
         return res.status(400).json({ error: "User not found" });
+      }
+
+      // Check if brewery exists
+      if (!brewery) {
+        return res.status(400).json({ error: "Brewery not found" });
       }
 
       // Check if brewery is in user's breweries array
@@ -1407,8 +1413,16 @@ app.delete(
         $pull: { breweries: breweryId },
       });
 
+      // Update the brewery document
+      await Breweries.findByIdAndUpdate(
+        breweryId,
+        {
+          $pull: { staff: userId, admin: userId },
+        },
+        { new: true }
+      );
       return res.status(200).json({
-        message: "Brewery removed successfully from your breweries",
+        message: "Brewery successfully removed from your breweries",
       });
     } catch (error) {
       handleError(res, error);

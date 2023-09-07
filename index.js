@@ -1422,7 +1422,7 @@ app.delete(
         { new: true }
       );
       return res.status(200).json({
-        message: "Brewery successfully removed from your breweries",
+        message: `${brewery.companyName} successfully removed`,
       });
     } catch (error) {
       handleError(res, error);

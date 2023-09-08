@@ -1135,14 +1135,18 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
     const brewery = await Breweries.findById(breweryId);
 
     if (!brewery) {
-      return res.status(400).send(`Brewery not found.`);
+      return res.status(400).json({
+        success: false,
+        message: `Brewery not found.`,
+      });
     }
 
     // Check if the user who made the request is the owner of the brewery
     if (req.user.id.toString() !== brewery.owner.toString()) {
-      return res
-        .status(403)
-        .send("You are not authorized to delete this brewery.");
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to delete this brewery.",
+      });
     }
     // Remove brewery from all staff members' breweries array
     await Users.updateMany(
@@ -1153,7 +1157,10 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
     // Delete the brewery
     await Breweries.findByIdAndRemove(breweryId);
 
-    res.status(200).send(`${brewery.companyName} was deleted.`);
+    res.status(200).json({
+      success: true,
+      message: `${brewery.companyName} was deleted.`,
+    });
   } catch (error) {
     handleError(res, error);
   }

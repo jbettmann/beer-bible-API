@@ -132,7 +132,7 @@ app.get("/", (req, res) => {
 let handleError = (res, err) => {
   console.error(err);
 
-  res.status(500).send(`Error: ${err}`);
+  res.status(500).json({ error: err.message });
 };
 
 // ************************** BeerBible API ************************************************

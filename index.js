@@ -972,7 +972,7 @@ app.put(
       const existingBrewery = await Breweries.findById(breweryId);
 
       if (!existingBrewery) {
-        return res.status(400).send("Brewery not found");
+        return res.status(400).json({ error: "Brewery not found" });
       }
 
       const updatedBrewery = await Breweries.findByIdAndUpdate(
@@ -981,7 +981,7 @@ app.put(
         { new: true }
       );
 
-      res.status(200).json({ updatedBrewery });
+      res.status(200).json(updatedBrewery);
     } catch (error) {
       handleError(res, error);
     }

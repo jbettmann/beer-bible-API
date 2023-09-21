@@ -103,9 +103,14 @@ const inviteSchema = mongoose.Schema({
 });
 
 // category schema
-const categorySchema = mongoose.Schema({
-  name: { type: String, required: true },
-});
+const categorySchema = mongoose.Schema(
+  {
+    name: { type: String, required: true },
+  },
+  {
+    timestamps: true, // This will create the `createdAt` and `updatedAt` fields automatically
+  }
+);
 
 // Function hashes users summited password
 userSchema.statics.hashPassword = (password) => {

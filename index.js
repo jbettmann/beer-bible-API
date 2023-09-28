@@ -1074,7 +1074,11 @@ app.patch(
             $addToSet: { admin: userId },
           },
           { new: true }
-        );
+        )
+          .populate("admin")
+          .populate("owner")
+          .populate("staff")
+          .populate("categories");
         return res.status(200).json({
           message: `${user.fullName} successfully added to admin`,
           brewery: updatedBrewery,

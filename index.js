@@ -89,9 +89,7 @@ const app = express();
 let allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:3000",
-  "http://testsite.com",
-  "https://beer-bible-api.vercel.app",
-  "beer-bible-api-git-main-jbettmann.vercel.app",
+  "https://beer-flow.vercel.app",
   "https://jbettmann.github.io",
 ];
 

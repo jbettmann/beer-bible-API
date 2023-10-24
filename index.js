@@ -222,7 +222,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 
 /**
  * POST: Creates new user; Username, Password & Email are required fields!
- * Request body: Bearer token, JSON with user information
+
  * @returns user object
  */
 app.post(
@@ -584,7 +584,6 @@ app.get("/users/:email", verifyJWT, (req, res) => {
   // condition to find specific user based on username
   Users.findOne({ email: req.params.email })
     .populate("breweries")
-    .populate("notifications")
     .then((user) => {
       res.json(user);
     })

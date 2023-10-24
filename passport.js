@@ -7,17 +7,17 @@ let Users = Models.User,
   JWTStrategy = passportJWT.Strategy,
   ExtractJWT = passportJWT.ExtractJwt;
 
-// HTTP Authentication. Takes username and password from request body and uses Mongoose to check database
+// HTTP Authentication. Takes email and password from request body and uses Mongoose to check database
 passport.use(
   new LocalStrategy(
     {
-      usernameField: "username",
+      emailField: "email",
       passwordField: "password", // password doesnt not get check here.
       // if match, callback is executed. This is login endpoint
     },
-    (username, password, callback) => {
-      console.log(username + "  " + password);
-      Users.findOne({ username: username }, (error, user) => {
+    (email, password, callback) => {
+      console.log(email + "  " + password);
+      Users.findOne({ email: email }, (error, user) => {
         // if error occures
         if (error) {
           console.log(error);
@@ -25,9 +25,9 @@ passport.use(
         }
         // in no user is found, message passed to callback.
         if (!user) {
-          console.log("incorrect username");
+          console.log("incorrect email");
           return callback(null, false, {
-            message: "Incorrect username or password.",
+            message: "Incorrect email or password.",
           });
         }
         // Hashes password enterd when logging in before comparing to password in database
@@ -49,7 +49,7 @@ passport.use(
       // Extracts JWT from header of HTTP request.
       jwtFromRequest: ExtractJWT.fromAuthHeaderAsBearerToken(),
       // Verifies singature of JWT. Client is who it says it is.
-      secretOrKey: "your_jwt_secret",
+      secretOrKey: process.env.PASSPORT_SECRET,
     },
     (jwtPayload, callback) => {
       return Users.findById(jwtPayload._id)

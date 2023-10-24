@@ -230,19 +230,14 @@ app.post(
   [
     // Validation logic
     //minimum value of 5 characters are only allowed
-    check("username", "Username is required").isLength({ min: 5 }),
+    check("fullName", "Your full name is required").isLength({ min: 2 }),
 
     // field can only contain letters and numbers
-    check(
-      "username",
-      "Username contains non alphanumeric characters - not allowed."
-    ).isAlphanumeric(),
+    // field must be formatted as an email address
+    check("email", "Email does not appear to be valid").isEmail(),
 
     // Chain of methods like .not().isEmpty() which means "opposite of isEmpty" or "is not empty"
     check("password", "Password is required").not().isEmpty(),
-
-    // field must be formatted as an email address
-    check("email", "Email does not appear to be valid").isEmail(),
   ],
   async (req, res) => {
     // check the validation object for errors
@@ -258,21 +253,20 @@ app.post(
           .status(400)
           .send(`An account with ${req.body.email} already exists`);
       }
-
+      let hashedPassword = Users.hashPassword(req.body.password);
       const newUser = new Users({
         fullName: req.body.fullName,
-        // .create takes and object based on schema
-
         email: req.body.email,
+        password: hashedPassword,
         breweries: [],
-        image: req.body.image,
+        image: req.body.image || null,
         notifications: {},
       });
       // Validate and save the beer
       await newUser.validate();
       const savedUser = await newUser.save();
 
-      res.status(201).json({ savedUser });
+      res.status(201).json(savedUser);
     } catch (error) {
       handleError(res, error);
     }
@@ -590,6 +584,7 @@ app.get("/users/:email", verifyJWT, (req, res) => {
   // condition to find specific user based on username
   Users.findOne({ email: req.params.email })
     .populate("breweries")
+    .populate("notifications")
     .then((user) => {
       res.json(user);
     })

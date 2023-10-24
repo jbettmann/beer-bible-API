@@ -1,19 +1,8 @@
 // creates endpoint for registered users to log in.
 // Authenticates login request via basic HTTP authentication and generate JWT for user
 
-const jwtSecret = "your_jwt_secret"; // This has to be the same key used in the JWTStrategy
-const jwt = require("jsonwebtoken"),
-  passport = require("passport");
-
-require("./passport"); // My local passport.js file
-
-let generateJWTToken = (user) => {
-  return jwt.sign(user, jwtSecret, {
-    subject: user.username, // This is the username you’re encoding in the JWT
-    expiresIn: "7d", // This specifies that the token will expire in 7 days
-    algorithm: "HS256", // This is the algorithm used to “sign” or encode the values of the JWT
-  });
-};
+const passport = require("passport");
+require("./passport"); // Your local passport.js file
 
 /* POST login. */
 module.exports = (router) => {
@@ -29,8 +18,7 @@ module.exports = (router) => {
         if (error) {
           res.send(error);
         }
-        let token = generateJWTToken(user.toJSON());
-        return res.json({ user, token }); // ES6 shorthand for res.json({ user: user, token: token })
+        return res.json({ user });
       });
     })(req, res);
   });

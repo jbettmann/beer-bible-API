@@ -5,12 +5,12 @@ const mongoose = require("mongoose"),
 const notificationSchema = new mongoose.Schema({
   allow: { type: Boolean, default: true }, // or false
   newBeerRelease: {
-    email: { type: Boolean, required: true },
-    push: { type: Boolean, required: true },
+    email: { type: Boolean, default: true },
+    push: { type: Boolean, default: true },
   },
   beerUpdate: {
-    email: { type: Boolean, required: true },
-    push: { type: Boolean, required: true },
+    email: { type: Boolean, default: true },
+    push: { type: Boolean, default: true },
   },
   // ... other fields
 });

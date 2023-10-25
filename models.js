@@ -20,6 +20,7 @@ const userSchema = mongoose.Schema(
   {
     fullName: { type: String, required: true },
     email: { type: String, required: true },
+    password: { type: String },
     breweries: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
     ],

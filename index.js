@@ -1146,7 +1146,7 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
     }
     // Remove brewery from all staff members' breweries array
     await Users.updateMany(
-      { _id: { $in: brewery.staff } },
+      { _id: { $in: [...brewery.staff, brewery.owner] } },
       { $pull: { breweries: breweryId } }
     );
 

@@ -166,7 +166,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     const token = crypto.randomBytes(16).toString("hex");
 
     // Send email here
-    const inviteUrl = `https://beer-flow.vercel.app//accept-invite?token=${token}`;
+    const inviteUrl = `https://beer-flow.vercel.app/accept-invite?token=${token}`;
 
     // `http://localhost:3000/accept-invite?token=${token}`
 

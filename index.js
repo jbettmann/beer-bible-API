@@ -166,8 +166,9 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
     const token = crypto.randomBytes(16).toString("hex");
 
     // Send email here
-    const inviteUrl = `http://localhost:3000/accept-invite?token=${token}`;
-    // `https://beer-bible-api.vercel.app/accept-invite?token=${token}`
+    const inviteUrl = `https://beer-flow.vercel.app//accept-invite?token=${token}`;
+
+    // `http://localhost:3000/accept-invite?token=${token}`
 
     const oauth2Client = new OAuth2Client(
       process.env.GMAIL_CLIENT,
@@ -199,7 +200,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
       subject: `Join ${brewery.companyName} on BeerFlo!`, // Subject line
       text: `You've been invited to join ${brewery.companyName}! Accept Invite! ${inviteUrl}`, // plain text body
       html: `<h3>You've been invited!</h3> 
-      <p><strong>${brewery.companyName}</strong> wants you to join their team on BeerFlo!</p>
+      <p><strong>${brewery.companyName}</strong> wants you to join their team on Brett!</p>
       <a href="${inviteUrl}" style="display: inline-block; font-weight: 400; color: #fff; text-align: center; vertical-align: middle; cursor: pointer; background-color: #007bff; border: 1px solid transparent; padding: .375rem .75rem; font-size: 1rem; line-height: 1.5; border-radius: .25rem; transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out; text-decoration: none;">Join The Crew!</a>`, // html body
     });
 

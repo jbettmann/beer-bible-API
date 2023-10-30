@@ -251,7 +251,9 @@ app.post(
       if (existingUser) {
         return res
           .status(400)
-          .send(`An account with ${req.body.email} already exists`);
+          .send({
+            message: `An account with ${req.body.email} already exists`,
+          });
       }
       let hashedPassword = Users.hashPassword(req.body.password);
       const newUser = new Users({

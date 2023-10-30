@@ -249,11 +249,9 @@ app.post(
     try {
       const existingUser = await Users.findOne({ email: req.body.email });
       if (existingUser) {
-        return res
-          .status(400)
-          .send({
-            message: `An account with ${req.body.email} already exists`,
-          });
+        return res.status(400).send({
+          message: `An account with ${req.body.email} already exists`,
+        });
       }
       let hashedPassword = Users.hashPassword(req.body.password);
       const newUser = new Users({
@@ -316,7 +314,7 @@ app.post(
         admin: [],
         staff: [],
         categories: [],
-      });
+      }).populate("owner");
 
       // Validate and save the beer
       await brewery.validate();

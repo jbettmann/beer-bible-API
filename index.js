@@ -315,7 +315,7 @@ app.post(
         admin: [],
         staff: [],
         categories: [],
-      }).populate("owner");
+      });
 
       // Validate and save the beer
       await brewery.validate();
@@ -324,7 +324,10 @@ app.post(
       if (savedBrewery) {
         user.breweries.push(savedBrewery._id);
         await user.save();
-        res.status(201).json({ savedBrewery });
+        const populatedBrewery = await Breweries.findById(
+          savedBrewery._id
+        ).populate("owner");
+        res.status(201).json({ savedBrewery: populatedBrewery });
       } else {
         throw new Error("Brewery save operation failed");
       }

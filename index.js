@@ -1151,6 +1151,9 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
       { $pull: { breweries: breweryId } }
     );
 
+    // Delete all beers associated with the brewery
+    await Beers.deleteMany({ companyId: breweryId });
+
     // Delete the brewery
     await Breweries.findByIdAndRemove(breweryId);
 

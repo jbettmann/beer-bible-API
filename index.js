@@ -1157,6 +1157,9 @@ app.delete("/breweries/:breweryId", verifyJWT, async (req, res) => {
     // Delete all beers associated with the brewery
     await Beers.deleteMany({ companyId: breweryId });
 
+    // Delete all categories associated with the brewery
+    await Categories.deleteMany({ _id: { $in: brewery.categories } });
+
     // Delete the brewery
     await Breweries.findByIdAndRemove(breweryId);
 

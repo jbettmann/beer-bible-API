@@ -24,7 +24,7 @@ const userSchema = mongoose.Schema(
     breweries: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
     ],
-    image: String, // image url from OAuth
+    image: { type: String, default: null }, // image url from OAuth
     notifications: notificationSchema,
   },
   {

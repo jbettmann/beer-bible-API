@@ -195,9 +195,9 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 
     // send mail with defined transport object
     let info = await transporter.sendMail({
-      from: '"BeerFlo" <no-reply@beerflo.com>', // sender address
+      from: '"Brett" <no-reply@Brett.com>', // sender address
       to: email, // list of receivers
-      subject: `Join ${brewery.companyName} on BeerFlo!`, // Subject line
+      subject: `Join ${brewery.companyName} on Brett!`, // Subject line
       text: `You've been invited to join ${brewery.companyName}! Accept Invite! ${inviteUrl}`, // plain text body
       html: `<h3>You've been invited!</h3> 
       <p><strong>${brewery.companyName}</strong> wants you to join their team on Brett!</p>

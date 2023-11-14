@@ -133,6 +133,16 @@ let handleError = (res, err) => {
   res.status(500).json({ error: err.message });
 };
 
+const oauth2Client = new OAuth2Client(
+  process.env.GMAIL_CLIENT,
+  process.env.GMAIL_SECRET,
+  "https://developers.google.com/oauthplayground" // This field is for the redirect URL
+);
+
+oauth2Client.setCredentials({
+  refresh_token: process.env.GMAIL_OAUTH_REFRESH,
+});
+
 // ************************** BeerBible API ************************************************
 
 //  POST/CREATE REQUEST ***************
@@ -170,17 +180,21 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 
     // `http://localhost:3000/accept-invite?token=${token}`
 
-    const oauth2Client = new OAuth2Client(
-      process.env.GMAIL_CLIENT,
-      process.env.GMAIL_SECRET,
-      "https://developers.google.com/oauthplayground" // This field is for the redirect URL
-    );
+    // Attempt to get an access token
+    let accessToken;
+    try {
+      const tokenInfo = await oauth2Client.getAccessToken();
+      accessToken = tokenInfo ? tokenInfo.token : null;
+    } catch (error) {
+      console.error("Error getting access token:", error);
+      return res.status(500).json({ message: "Error obtaining access token" });
+    }
 
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GMAIL_OAUTH_REFRESH,
-    });
+    if (!accessToken) {
+      console.error("Failed to obtain access token");
+      return res.status(500).json({ message: "Failed to obtain access token" });
+    }
 
-    const response = await oauth2Client.refreshAccessToken();
     let transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -189,7 +203,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
         clientId: process.env.GMAIL_CLIENT,
         clientSecret: process.env.GMAIL_SECRET,
         refreshToken: process.env.GMAIL_OAUTH_REFRESH,
-        accessToken: response.credentials.access_token, // Access token obtained from the OAuth2 client
+        accessToken: accessToken,
       },
     });
 
@@ -217,6 +231,7 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
       .status(200)
       .json({ message: `Invitation sent to ${email}`, email: email });
   } catch (error) {
+    console.error("Error in sending invitation:", error);
     handleError(res, error);
   }
 });

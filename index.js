@@ -253,7 +253,9 @@ app.post(
     check("email", "Email does not appear to be valid").isEmail(),
 
     // Chain of methods like .not().isEmpty() which means "opposite of isEmpty" or "is not empty"
-    check("password", "Password is required").not().isEmpty(),
+    check("password", "Password is required")
+      .not()
+      .isEmpty(),
   ],
   async (req, res) => {
     // check the validation object for errors
@@ -300,7 +302,9 @@ app.post(
     verifyJWT,
     // Validation logic
     //minimum value of 1 characters are only allowed
-    check("companyName", "Company Name is required").not().isEmpty(),
+    check("companyName", "Company Name is required")
+      .not()
+      .isEmpty(),
   ],
   async (req, res) => {
     // check the validation object for errors
@@ -329,6 +333,7 @@ app.post(
         owner: req.user.id,
         admin: [],
         staff: [],
+        beers: [],
         categories: [],
       });
 
@@ -413,6 +418,7 @@ app.post(
       const savedBeer = await beer.save();
 
       if (savedBeer) {
+        brewery.beers.push(savedBeer._id);
         res.status(201).json(savedBeer);
       } else {
         throw new Error("Beer save operation failed");
@@ -484,7 +490,7 @@ app.post(
 
 /**
  * POST: Returns data on breweries (array of brewery objects) user is
- * apart of staff array. getBreweries is nextjs
+ * apart of staff array. getBreweries in nextjs
  * Request body: Bearer token, JSON with array of brewery ids
  * @param breweries
  * @returns array of brewery objects
@@ -501,11 +507,11 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
       $or: [{ staff: authUser }, { admin: authUser }, { owner: authUser }],
-    })
-      .populate("categories")
-      .populate("owner")
-      .populate("staff")
-      .populate("admin");
+    });
+    // .populate("categories")
+    // .populate("owner")
+    // .populate("staff")
+    // .populate("admin");
 
     if (breweries.length === 0) {
       return res
@@ -651,9 +657,12 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
   // gets user from token verifyJWT
   const authUser = req.user.id;
 
+  // Check if the query parameter `populateBeers` is set to 'true'
+  const populateBeers = req.query.populateBeers === "true";
+
   try {
     // checks if brewery exists and if user requesting data is in staff array
-    const brewery = await Breweries.findOne({
+    let breweryQuery = Breweries.findOne({
       _id: req.params.breweryId,
       $or: [{ staff: authUser }, { owner: authUser }],
     })
@@ -661,6 +670,19 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
       .populate("categories")
       .populate("admin")
       .populate("owner");
+
+    // If populateBeers is true, modify the query to populate the `beers` array
+    if (populateBeers) {
+      breweryQuery = breweryQuery.populate({
+        path: "beers",
+        populate: {
+          path: "category",
+        },
+      });
+    }
+
+    // Execute the query
+    const brewery = await breweryQuery.exec();
 
     if (!brewery) {
       return res
@@ -793,10 +815,14 @@ app.put(
     // Validation logic
     verifyJWT,
     //minimum value of 5 characters are only allowed
-    check("name", "Name is required").not().isEmpty(),
+    check("name", "Name is required")
+      .not()
+      .isEmpty(),
 
     // Chain of methods like .not().isEmpty() which means "opposite of isEmpty" or "is not empty"
-    check("style", "Style is required").not().isEmpty(),
+    check("style", "Style is required")
+      .not()
+      .isEmpty(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -862,7 +888,10 @@ app.put(
   [
     verifyJWT,
     // Ensure the category is provided
-    check("category", "Category is required").not().isEmpty().isArray(),
+    check("category", "Category is required")
+      .not()
+      .isEmpty()
+      .isArray(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -976,6 +1005,7 @@ app.put(
         companyName: req.body.companyName,
         admin: req.body.admin,
         staff: req.body.staff,
+        beers: req.body.beers,
         categories: req.body.categories,
         image: req.body.image,
       };
@@ -1206,30 +1236,50 @@ app.delete(
       const brewery = await Breweries.findById(breweryId);
 
       if (!brewery) {
-        return res.status(400).json({
-          error: `Brewery was not found.`,
+        return res.status(404).json({
+          error: `Brewery not found.`,
         });
       }
 
-      // Check if authUser is the owner or another admin
+      // Check if authUser is the owner or an admin
       if (
         authUser.toString() !== brewery.owner.toString() &&
-        !brewery.admin.includes(authUser)
+        !brewery.admin
+          .map((admin) => admin.toString())
+          .includes(authUser.toString())
       ) {
-        return res.status(400).json({
-          error: "Only the owner or another admin can delete a beer",
+        return res.status(403).json({
+          error: "Only the owner or an admin can delete a beer",
         });
       }
 
+      // Remove the beer from the brewery's beers array
+      const updateResult = await brewery.updateOne({
+        $pull: { beers: beerId },
+      });
+
+      if (updateResult.nModified === 0) {
+        return res.status(404).json({
+          error: `Beer not found in the brewery.`,
+        });
+      }
+
+      // Delete the beer from the Beers collection
       const beer = await Beers.findOneAndDelete({
         _id: beerId,
         companyId: breweryId,
       });
 
       if (!beer) {
-        return res.status(400).send(`Beer was not found.`);
+        return res.status(404).json({
+          error: `Beer not found.`,
+        });
       }
-      res.status(200).send(`${beer.name} was deleted.`);
+
+      // Send success response
+      res.status(200).json({
+        message: `${beer.name} was deleted.`,
+      });
     } catch (error) {
       handleError(res, error);
     }

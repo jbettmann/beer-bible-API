@@ -43,6 +43,7 @@ const brewerySchema = mongoose.Schema(
     },
     admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
     staff: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+    beers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Beer", default: [] }],
     categories: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: [] },
     ],
@@ -119,7 +120,7 @@ userSchema.statics.hashPassword = (password) => {
 };
 
 // Function compares submitted hashed password with hashed password stored in database
-userSchema.methods.validatePassword = function (password) {
+userSchema.methods.validatePassword = function(password) {
   return bcrypt.compareSync(password, this.password);
 };
 

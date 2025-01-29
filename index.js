@@ -644,6 +644,37 @@ app.get("/breweries/:breweryId/beers", verifyJWT, (req, res) => {
     .catch(handleError);
 });
 
+/**
+ * GET: Returns a single beer from a brewery
+ * @param breweryId - Brewery ID
+ * @param beerId - Beer ID
+ * @returns Single beer object
+ * @requires passport
+ */
+app.get("/breweries/:breweryId/beers/:beerId", verifyJWT, async (req, res) => {
+  try {
+    const beer = await Beers.findOne({
+      _id: req.params.beerId,
+      companyId: req.params.breweryId,
+    }).populate("category");
+
+    if (!beer) {
+      return res.status(404).json({
+        message: "Beer not found in this brewery",
+      });
+    }
+
+    res.status(200).json(beer);
+  } catch (error) {
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Invalid beer ID format",
+      });
+    }
+    handleError(error, res);
+  }
+});
+
 //  Created POST request to handle array of brewery ids
 /**
  * GET: Returns data on a single brewery (brewery object)

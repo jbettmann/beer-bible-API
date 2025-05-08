@@ -599,20 +599,30 @@ app.get("/users", verifyJWT, (req, res) => {
 });
 
 /**
- * GET: Returns data on a single user (user object) by user username
+ * GET: Returns data on a single user (user object) by user email
  * Request body: Bearer token
- * @param username
+ * @param email
  * @returns user object
  * @requires passport
  */
-app.get("/users/:email", verifyJWT, (req, res) => {
-  // condition to find specific user based on username
-  Users.findOne({ email: req.params.email })
-    .populate("breweries")
-    .then((user) => {
-      res.json(user);
-    })
-    .catch(handleError);
+app.get("/users/:email", verifyJWT, async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  try {
+    const user = await Users.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    handleError(res, error);
+  }
 });
 
 /**
@@ -657,7 +667,6 @@ app.get("/breweries/:breweryId/beers/:beerId", verifyJWT, async (req, res) => {
       _id: req.params.beerId,
       companyId: req.params.breweryId,
     }).populate("category");
-
     if (!beer) {
       return res.status(404).json({
         message: "Beer not found in this brewery",
@@ -1113,6 +1122,37 @@ app.put(
 );
 
 //  PATCH REQUEST **************************************************************
+
+/*
+ * PATCH: Update user info
+ * Request body: Bearer token, updated user info
+ * @param userId
+ * @returns user object with updates
+ * @requires passport
+ * @requires express-validator
+ *
+ */
+
+app.patch("/users/:userId", verifyJWT, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const updatedFields = req.body;
+
+    const existingUser = await Users.findByIdAndUpdate(
+      userId,
+      { $set: updatedFields },
+      { new: true }
+    );
+
+    if (!existingUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json(existingUser);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
 
 /**
  * PATCH: Toggle admin status for a user in a brewery

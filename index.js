@@ -311,6 +311,7 @@ app.post(
       .isEmpty(),
   ],
   async (req, res) => {
+    const { email, password } = req.body;
     // check the validation object for errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -318,14 +319,17 @@ app.post(
     }
 
     try {
-      const existingUser = await Users.findOne({ email: req.body.email });
-      if (!existingUser) {
-        return res.status(400).send({
-          message: `An account with ${req.body.email} does not exist`,
-        });
+      const existingUser = await Users.findOne({ email: email });
+      const isPasswordValid = existingUser.validatePassword(password);
+
+      if (!existingUser || !isPasswordValid) {
+        return res.status(400).json({ error: "Invalid email or password." });
       }
 
-      res.status(201).json(existingUser);
+      const userObject = existingUser.toObject();
+      const { password, ...userWithoutPassword } = userObject;
+
+      res.status(200).json(userWithoutPassword);
     } catch (error) {
       handleError(res, error);
     }

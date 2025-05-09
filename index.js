@@ -265,11 +265,21 @@ app.post(
     // check if user already exists
     try {
       const existingUser = await Users.findOne({ email: req.body.email });
-      if (existingUser) {
-        return res.status(400).send({
-          message: `An account with ${req.body.email} already exists`,
+      // If user exists and was created with OAuth (no password)
+      if (existingUser && !existingUser.password) {
+        return res.status(403).json({
+          error:
+            "An account with this email already exists and was created using Google. Please use the Google login.",
         });
       }
+
+      // If user exists and already has password (was created with credentials)
+      if (existingUser) {
+        return res.status(400).json({
+          error: `An account with ${email} already exists.`,
+        });
+      }
+
       let hashedPassword = Users.hashPassword(req.body.password);
       const newUser = new Users({
         fullName: req.body.fullName,
@@ -321,7 +331,20 @@ app.post(
       const existingUser = await Users.findOne({ email: req.body.email });
       const isPasswordValid = existingUser.validatePassword(req.body.password);
 
-      if (!existingUser || !isPasswordValid) {
+      // If no user, or user exists but has no password (OAuth account)
+      if (!existingUser) {
+        return res.status(400).json({ error: "Invalid email or password." });
+      }
+
+      // If user exists but was created with OAuth (no password)
+      if (!existingUser.password) {
+        return res.status(403).json({
+          error:
+            "An account with this email was created using Google. Please log in with the Google.",
+        });
+      }
+
+      if (!isPasswordValid) {
         return res.status(400).json({ error: "Invalid email or password." });
       }
 

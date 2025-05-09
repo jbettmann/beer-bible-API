@@ -237,12 +237,11 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 });
 
 /**
- * POST: Creates new user; Username, Password & Email are required fields!
-
+ * POST: Creates new user with credentials; Full Name, Email & Password are required fields!
  * @returns user object
  */
 app.post(
-  "/users",
+  "/users/credentials/create",
   [
     // Validation logic
     //minimum value of 5 characters are only allowed
@@ -290,6 +289,95 @@ app.post(
     }
   }
 );
+
+/**
+ * POST: Get user with credentials; Full Name, Email & Password are required fields!
+ * @returns user object
+ */
+app.post(
+  "/users/credentials/login",
+  [
+    // Validation logic
+    //minimum value of 5 characters are only allowed
+    check("fullName", "Your full name is required").isLength({ min: 2 }),
+
+    // field can only contain letters and numbers
+    // field must be formatted as an email address
+    check("email", "Email does not appear to be valid").isEmail(),
+
+    // Chain of methods like .not().isEmpty() which means "opposite of isEmpty" or "is not empty"
+    check("password", "Password is required")
+      .not()
+      .isEmpty(),
+  ],
+  async (req, res) => {
+    // check the validation object for errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+
+    try {
+      const existingUser = await Users.findOne({ email: req.body.email });
+      if (!existingUser) {
+        return res.status(400).send({
+          message: `An account with ${req.body.email} does not exist`,
+        });
+      }
+
+      res.status(201).json(existingUser);
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+);
+
+/**
+ * POST: Creates new user from OAuth
+ * @param name - User's full name
+ * @param email - User's email
+ * @param picture - User's profile picture
+ * @returns user object
+ */
+app.post("/users/oauth/create", async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    let user = await Users.findOne({ email });
+
+    // If user exists and is credentials-based
+    if (user && user.password) {
+      return res.status(403).json({
+        error:
+          "User registered with credentials. Please use email & password to login.",
+      });
+    }
+
+    // Create user if not exists
+    if (!user) {
+      user = new Users({
+        fullName: name,
+        email,
+        breweries: [],
+        notifications: {
+          allow: true,
+          newBeerRelease: { email: true, push: true },
+          beerUpdate: { email: true, push: true },
+        },
+      });
+      await user.save();
+    }
+
+    res.status(200).json(user);
+  } catch (err) {
+    console.error("OAuth sign-in error:", err);
+    res.status(500).json({ error: "Server error during OAuth sign-in" });
+  }
+});
 
 /**
  * POST: Creates new brewery; Company Name & Owner are required fields!
@@ -596,33 +684,6 @@ app.get("/users", verifyJWT, (req, res) => {
       res.status(201).json(users);
     })
     .catch(handleError);
-});
-
-/**
- * GET: Returns data on a single user (user object) by user email
- * Request body: Bearer token
- * @param email
- * @returns user object
- * @requires passport
- */
-app.get("/users/:email", verifyJWT, async (req, res) => {
-  const { email } = req.query;
-
-  if (!email) {
-    return res.status(400).json({ error: "Email is required." });
-  }
-
-  try {
-    const user = await Users.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    res.status(200).json(user);
-  } catch (error) {
-    handleError(res, error);
-  }
 });
 
 /**

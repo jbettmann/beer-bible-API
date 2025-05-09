@@ -359,13 +359,13 @@ app.post(
 );
 
 /**
- * POST: Creates new user from OAuth
+ * POST: Create/Get user from OAuth
  * @param name - User's full name
  * @param email - User's email
  * @param picture - User's profile picture
  * @returns user object
  */
-app.post("/users/oauth/create", async (req, res) => {
+app.post("/users/oauth", async (req, res) => {
   try {
     const { name, email } = req.body;
 

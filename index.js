@@ -329,7 +329,6 @@ app.post(
 
     try {
       const existingUser = await Users.findOne({ email: req.body.email });
-      const isPasswordValid = existingUser.validatePassword(req.body.password);
 
       // If no user, or user exists but has no password (OAuth account)
       if (!existingUser) {
@@ -344,6 +343,7 @@ app.post(
         });
       }
 
+      const isPasswordValid = existingUser.validatePassword(req.body.password);
       if (!isPasswordValid) {
         return res.status(400).json({ error: "Invalid email or password." });
       }

@@ -143,6 +143,137 @@ oauth2Client.setCredentials({
   refresh_token: process.env.GMAIL_OAUTH_REFRESH,
 });
 
+const BEER_FLOW_APP_URL = (
+  process.env.BEER_FLOW_APP_URL || "https://beer-flow.vercel.app"
+).replace(/\/$/, "");
+
+const MAIL_FROM_INVITE = '"Brett" <no-reply@brett.com>';
+const MAIL_FROM_NOTIFICATION = '"Beer Flow" <no-reply@beer-flow.vercel.app>';
+
+const buildBeerLink = (breweryId, beerId) => {
+  if (!breweryId || !beerId) {
+    return null;
+  }
+
+  return `${BEER_FLOW_APP_URL}/dashboard/breweries/${breweryId}/beers/${beerId}`;
+};
+
+async function createGmailTransporter() {
+  const tokenInfo = await oauth2Client.getAccessToken();
+  const accessToken = tokenInfo ? tokenInfo.token : null;
+
+  if (!accessToken) {
+    throw new Error("Failed to obtain Gmail access token");
+  }
+
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      type: "OAuth2",
+      user: process.env.GMAIL_EMAIL,
+      clientId: process.env.GMAIL_CLIENT,
+      clientSecret: process.env.GMAIL_SECRET,
+      refreshToken: process.env.GMAIL_OAUTH_REFRESH,
+      accessToken,
+    },
+  });
+}
+
+async function sendGmailMail(message) {
+  const transporter = await createGmailTransporter();
+  return transporter.sendMail(message);
+}
+
+async function sendBeerLifecycleNotification({
+  brewery,
+  beerId,
+  breweryName,
+  beerName,
+  eventType,
+}) {
+  try {
+    const preferenceKey =
+      eventType === "created" ? "newBeerRelease" : "beerUpdate";
+    const recipientIds = [brewery.owner, ...(brewery.admin || []), ...(brewery.staff || [])]
+      .filter(Boolean)
+      .map((user) => (user && user._id ? user._id : user).toString());
+    const recipients = await Users.find(
+      {
+        _id: {
+          $in: recipientIds,
+        },
+      },
+      "email notifications"
+    );
+
+    const eligibleEmails = [
+      ...new Set(
+        recipients
+          .filter(
+            (user) =>
+              user.notifications?.allow === true &&
+              user.notifications?.[preferenceKey]?.email === true &&
+              user.email
+          )
+          .map((user) => user.email)
+      ),
+    ];
+
+    if (eligibleEmails.length === 0) {
+      return;
+    }
+
+    const link = buildBeerLink(brewery._id || brewery, beerId);
+    const actionLabel =
+      eventType === "created"
+        ? "released"
+        : eventType === "archived"
+          ? "archived"
+          : eventType === "removed"
+            ? "removed"
+            : "updated";
+    const subject =
+      eventType === "created"
+        ? `${breweryName}: ${beerName} was released`
+        : eventType === "archived"
+          ? `${breweryName}: ${beerName} was archived`
+          : eventType === "removed"
+            ? `${breweryName}: ${beerName} was removed`
+            : `${breweryName}: ${beerName} was updated`;
+    const text = [
+      `${breweryName} ${actionLabel} ${beerName}.`,
+      link ? `Beer Flow: ${link}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const html = `
+      <h3>${breweryName} ${actionLabel} ${beerName}</h3>
+      <p><strong>${beerName}</strong> was ${actionLabel} at <strong>${breweryName}</strong>.</p>
+      ${
+        link
+          ? `<p><a href="${link}">View in Beer Flow</a></p>`
+          : ""
+      }
+    `;
+
+    await sendGmailMail({
+      from: MAIL_FROM_NOTIFICATION,
+      to: process.env.GMAIL_EMAIL,
+      bcc: eligibleEmails,
+      subject,
+      text,
+      html,
+    });
+  } catch (error) {
+    console.error("Beer lifecycle notification failed:", {
+      breweryId: brewery && brewery._id ? brewery._id.toString() : brewery,
+      beerId,
+      error,
+    });
+  }
+}
+
 // ************************** BeerBible API ************************************************
 
 //  POST/CREATE REQUEST ***************
@@ -180,36 +311,9 @@ app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
 
     // `http://localhost:3000/accept-invite?token=${token}`
 
-    // Attempt to get an access token
-    let accessToken;
-    try {
-      const tokenInfo = await oauth2Client.getAccessToken();
-      accessToken = tokenInfo ? tokenInfo.token : null;
-    } catch (error) {
-      console.error("Error getting access token:", error);
-      return res.status(500).json({ message: "Error obtaining access token" });
-    }
-
-    if (!accessToken) {
-      console.error("Failed to obtain access token");
-      return res.status(500).json({ message: "Failed to obtain access token" });
-    }
-
-    let transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        type: "OAuth2",
-        user: process.env.GMAIL_EMAIL,
-        clientId: process.env.GMAIL_CLIENT,
-        clientSecret: process.env.GMAIL_SECRET,
-        refreshToken: process.env.GMAIL_OAUTH_REFRESH,
-        accessToken: accessToken,
-      },
-    });
-
     // send mail with defined transport object
-    let info = await transporter.sendMail({
-      from: '"Brett" <no-reply@brett.com>', // sender address
+    let info = await sendGmailMail({
+      from: MAIL_FROM_INVITE, // sender address
       to: email, // list of receivers
       subject: `Join ${brewery.companyName} on Brett!`, // Subject line
       text: `You've been invited to join ${brewery.companyName}! Accept Invite! ${inviteUrl}`, // plain text body
@@ -534,6 +638,13 @@ app.post(
       if (savedBeer) {
         brewery.beers.push(savedBeer._id);
         res.status(201).json(savedBeer);
+        void sendBeerLifecycleNotification({
+          brewery,
+          beerId: savedBeer._id,
+          breweryName: brewery.companyName,
+          beerName: savedBeer.name,
+          eventType: "created",
+        });
       } else {
         throw new Error("Beer save operation failed");
       }
@@ -996,6 +1107,16 @@ app.put(
       }
 
       res.status(200).json(existingBeer);
+      void sendBeerLifecycleNotification({
+        brewery,
+        beerId: existingBeer._id,
+        breweryName: brewery.companyName,
+        beerName: existingBeer.name,
+        eventType:
+          req.body.archived === true && beer.archived !== true
+            ? "archived"
+            : "updated",
+      });
     } catch (error) {
       handleError(res, error);
     }
@@ -1416,7 +1537,10 @@ app.delete(
         $pull: { beers: beerId },
       });
 
-      if (updateResult.nModified === 0) {
+      const modifiedCount =
+        updateResult.modifiedCount ?? updateResult.nModified ?? 0;
+
+      if (modifiedCount === 0) {
         return res.status(404).json({
           error: `Beer not found in the brewery.`,
         });
@@ -1437,6 +1561,13 @@ app.delete(
       // Send success response
       res.status(200).json({
         message: `${beer.name} was deleted.`,
+      });
+      void sendBeerLifecycleNotification({
+        brewery,
+        beerId,
+        breweryName: brewery.companyName,
+        beerName: beer.name,
+        eventType: "removed",
       });
     } catch (error) {
       handleError(res, error);

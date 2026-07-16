@@ -14,6 +14,10 @@ const {
   createMongoConnectionManager,
   isValidObjectIdArray,
 } = require("./mongo.js");
+const {
+  buildBreweryAccessQuery,
+  validateBreweryAccessIds,
+} = require("./breweryAccess.js");
 
 // MIDDLE WARE ****************************************
 function verifyJWT(req, res, next) {
@@ -911,11 +915,22 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
   const populateBeers = req.query.populateBeers === "true";
 
   try {
-    // checks if brewery exists and if user requesting data is in staff array
-    let breweryQuery = Breweries.findOne({
-      _id: req.params.breweryId,
-      $or: [{ staff: authUser }, { owner: authUser }],
-    })
+    const validationError = validateBreweryAccessIds({
+      breweryId: req.params.breweryId,
+      authUser,
+    });
+
+    if (validationError) {
+      return res.status(400).json(validationError);
+    }
+
+    // checks if brewery exists and if user requesting data is in staff/admin/owner array
+    let breweryQuery = Breweries.findOne(
+      buildBreweryAccessQuery({
+        breweryId: req.params.breweryId,
+        authUser,
+      })
+    )
       .populate("staff")
       .populate("categories")
       .populate("admin")

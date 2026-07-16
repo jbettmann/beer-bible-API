@@ -10,6 +10,10 @@ const express = require("express"),
 
 require("dotenv").config();
 const { OAuth2Client } = require("google-auth-library");
+const {
+  createMongoConnectionManager,
+  isValidObjectIdArray,
+} = require("./mongo.js");
 
 // MIDDLE WARE ****************************************
 function verifyJWT(req, res, next) {
@@ -76,13 +80,6 @@ const Breweries = Models.Brewery;
 const Categories = Models.Category;
 const Invites = Models.Invite;
 
-// allows Mongoose to conncect to database to perform CRUD operations on doc
-mongoose.connect(
-  // process.env.CONNECTION_URI defined in Vercel
-  process.env.CONNECTION_URI || "mongodb://localhost:27017/BeerBibleDB",
-  { useNewUrlParser: true, useUnifiedTopology: true }
-);
-
 const app = express();
 
 // List of allowed domains
@@ -126,6 +123,12 @@ app.use(express.static("public"));
 app.get("/", (req, res) => {
   res.send(`Beers are flowin! Cheers!`);
 });
+
+const { mongoReadinessMiddleware } = createMongoConnectionManager({
+  mongooseInstance: mongoose,
+});
+
+app.use(mongoReadinessMiddleware);
 
 let handleError = (res, err) => {
   console.error(err);
@@ -728,6 +731,16 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
   const breweryIds = req.body.breweryIds;
 
   try {
+    if (!mongoose.isValidObjectId(authUser)) {
+      return res.status(400).json({ error: "Invalid user ID format." });
+    }
+
+    if (!isValidObjectIdArray(breweryIds)) {
+      return res.status(400).json({
+        error: "breweryIds must be a non-empty array of valid brewery IDs.",
+      });
+    }
+
     // checks if breweries exist and if user requesting data is in staff array
     const breweries = await Breweries.find({
       _id: { $in: breweryIds },
@@ -746,8 +759,7 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
 
     return res.status(200).json({ breweries });
   } catch (error) {
-    handleError(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return handleError(res, error);
   }
 });
 
@@ -878,7 +890,7 @@ app.get("/breweries/:breweryId/beers/:beerId", verifyJWT, async (req, res) => {
         message: "Invalid beer ID format",
       });
     }
-    handleError(error, res);
+    handleError(res, error);
   }
 });
 
@@ -930,8 +942,7 @@ app.get("/breweries/:breweryId", verifyJWT, async (req, res) => {
 
     return res.status(200).json(brewery);
   } catch (error) {
-    handleError(error);
-    return res.status(500).json({ error: "Internal server error" });
+    handleError(res, error);
   }
 });
 
@@ -1858,9 +1869,11 @@ app.use((err, req, res, next) => {
 
 // process.env.PORT listens for pre-configured port number or, if not found, set port to pertain port number
 const port = process.env.PORT || 8080;
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Listening on Port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Listening on Port ${port}`);
+  });
+}
 
 // Export the Express API
 module.exports = app;

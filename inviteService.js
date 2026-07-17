@@ -70,6 +70,20 @@ function isDuplicateKeyError(error) {
   return Boolean(error && (error.code === 11000 || error.code === 11001));
 }
 
+function wasRecipientAccepted(delivery, recipientEmail) {
+  if (!delivery || !Array.isArray(delivery.accepted)) {
+    return false;
+  }
+
+  return delivery.accepted.some((acceptedRecipient) => {
+    const address =
+      acceptedRecipient && typeof acceptedRecipient === "object"
+        ? acceptedRecipient.address
+        : acceptedRecipient;
+    return normalizeEmail(address) === recipientEmail;
+  });
+}
+
 function getMatchedCount(result) {
   if (!result || typeof result !== "object") {
     return 0;
@@ -106,10 +120,10 @@ function createInviteEmailContent({ breweryName, inviteUrl }) {
   const safeBreweryName = escapeHtml(breweryName);
 
   return {
-    subject: `Join ${breweryName} on Brett!`,
+    subject: `Join ${breweryName} on Beer Flow!`,
     text: `You've been invited to join ${breweryName}! Accept Invite! ${inviteUrl}`,
     html: `<h3>You've been invited!</h3>
-      <p><strong>${safeBreweryName}</strong> wants you to join their team on Brett!</p>
+      <p><strong>${safeBreweryName}</strong> wants you to join their team on Beer Flow!</p>
       <p><a href="${inviteUrl}" style="display: inline-block; font-weight: 400; color: #fff; text-align: center; vertical-align: middle; cursor: pointer; background-color: #007bff; border: 1px solid transparent; padding: .375rem .75rem; font-size: 1rem; line-height: 1.5; border-radius: .25rem; transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out; text-decoration: none;">Join The Crew!</a></p>`,
   };
 }
@@ -121,6 +135,7 @@ function createInviteService({
   frontendBaseUrl = DEFAULT_FRONTEND_BASE_URL,
   inviteFrom,
   sendMail,
+  logDeliveryFailure = () => {},
   startSession = () => mongoose.startSession(),
   tokenGenerator = () => crypto.randomBytes(INVITE_TOKEN_BYTES).toString("hex"),
 }) {
@@ -217,13 +232,38 @@ function createInviteService({
     });
 
     try {
-      await sendMail({
+      const delivery = await sendMail({
         from: inviteFrom,
         to: normalizedEmail,
         ...emailContent,
       });
+
+      if (!wasRecipientAccepted(delivery, normalizedEmail)) {
+        throw new Error("Invite recipient was not accepted by the mail provider.");
+      }
     } catch (error) {
-      await Invites.deleteOne({ _id: invite._id });
+      // Cleanup must not mask the delivery result or leak provider/DB details.
+      // The unique brewery/recipient index still prevents duplicate invites if
+      // this best-effort compensation cannot reach MongoDB.
+      let cleanupFailed = false;
+      try {
+        await Invites.deleteOne({ _id: invite._id });
+      } catch {
+        cleanupFailed = true;
+      }
+      try {
+        logDeliveryFailure({
+          cleanupFailed,
+          providerCode:
+            error && typeof error.code === "string" ? error.code : undefined,
+          providerResponseCode:
+            error && Number.isInteger(error.responseCode)
+              ? error.responseCode
+              : undefined,
+        });
+      } catch {
+        // Diagnostics must never replace the stable client-facing error.
+      }
       throw new ServiceError(
         "Failed to deliver invite email. Please try again later.",
         502
@@ -232,7 +272,6 @@ function createInviteService({
 
     return {
       email: normalizedEmail,
-      invite,
       message: `Invitation sent to ${normalizedEmail}`,
     };
   }
@@ -383,6 +422,7 @@ module.exports = {
   getMatchedCount,
   isDuplicateKeyError,
   normalizeEmail,
+  wasRecipientAccepted,
   validateBreweryId,
   validateInviteToken,
 };

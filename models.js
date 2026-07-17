@@ -19,7 +19,7 @@ const notificationSchema = new mongoose.Schema({
 const userSchema = mongoose.Schema(
   {
     fullName: { type: String, required: true },
-    email: { type: String, required: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
     password: { type: String },
     breweries: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Brewery", default: [] },
@@ -31,6 +31,8 @@ const userSchema = mongoose.Schema(
     timestamps: true, // This will create the `createdAt` and `updatedAt` fields automatically
   }
 );
+
+userSchema.index({ email: 1 }, { unique: true, name: "user_email_unique" });
 
 // brewery schema
 const brewerySchema = mongoose.Schema(
@@ -100,9 +102,30 @@ const inviteSchema = mongoose.Schema({
     required: true,
   },
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  isAdmin: Boolean,
-  createdAt: { type: Date, required: true, default: Date.now, expires: "24h" },
+  recipientEmail: {
+    type: String,
+    required: true,
+    lowercase: true,
+    trim: true,
+  },
+  isAdmin: { type: Boolean, required: true },
+  createdAt: { type: Date, required: true, default: Date.now },
+  expiresAt: {
+    type: Date,
+    required: true,
+    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000),
+  },
 });
+
+inviteSchema.index({ token: 1 }, { unique: true, name: "invite_token_unique" });
+inviteSchema.index(
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0, name: "invite_expires_at_ttl" }
+);
+inviteSchema.index(
+  { brewery: 1, recipientEmail: 1 },
+  { unique: true, name: "invite_brewery_recipient_unique" }
+);
 
 // category schema
 const categorySchema = mongoose.Schema(

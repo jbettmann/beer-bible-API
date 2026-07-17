@@ -9,6 +9,7 @@ const DEFAULT_MONGO_OPTIONS = {
   serverSelectionTimeoutMS: 5000,
   connectTimeoutMS: 5000,
   maxPoolSize: 5,
+  autoIndex: false,
 };
 
 function createMongoConnectionManager({

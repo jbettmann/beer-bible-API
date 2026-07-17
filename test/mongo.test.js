@@ -2,9 +2,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  DEFAULT_MONGO_OPTIONS,
   createMongoConnectionManager,
   isValidObjectIdArray,
 } = require("../mongo.js");
+
+test("DEFAULT_MONGO_OPTIONS disables automatic index creation", () => {
+  assert.equal(DEFAULT_MONGO_OPTIONS.autoIndex, false);
+});
 
 test("isValidObjectIdArray accepts only non-empty valid ObjectId arrays", () => {
   assert.equal(

@@ -15,9 +15,40 @@ const {
   isValidObjectIdArray,
 } = require("./mongo.js");
 const {
+  buildBeerWithinBreweryFilter,
+  buildContainingBreweryCategoryFilter,
+  buildOwnerAdminBreweryFilter,
+  breweryHasCategories,
+  validateObjectId,
+  validateObjectIdArray,
+  validateOptionalObjectIdArray,
+} = require("./breweryMutationAccess.js");
+const {
   buildBreweryAccessQuery,
   validateBreweryAccessIds,
 } = require("./breweryAccess.js");
+const {
+  buildCaseInsensitiveEmailFilter,
+  normalizeEmail,
+} = require("./emailNormalization.js");
+const {
+  ServiceError,
+  buildAdminGrantFilter,
+  buildAdminRevokeFilter,
+  createInviteService,
+  ensureAdminGrantPreconditions,
+} = require("./inviteService.js");
+const {
+  arrayHasObjectId,
+  canManageBreweryInvites,
+} = require("./rolePredicates.js");
+const {
+  BREWERY_PROFILE_ALLOWED_FIELDS,
+  findDisallowedFields,
+  pickAllowedFields,
+  USER_PROFILE_ALLOWED_FIELDS,
+  validateNotificationsPayload,
+} = require("./securityRemediation.js");
 
 // MIDDLE WARE ****************************************
 function verifyJWT(req, res, next) {
@@ -41,31 +72,95 @@ function verifyJWT(req, res, next) {
 }
 
 const validateNotifications = (req, res, next) => {
-  const { notifications } = req.body;
+  const error = validateNotificationsPayload(req.body.notifications);
 
-  if (!notifications) {
-    return res.status(400).json({ error: "Missing notifications object." });
-  }
-
-  const expectedKeys = ["newBeerRelease", "beerUpdate"];
-
-  for (const key of expectedKeys) {
-    if (!notifications[key]) {
-      return res
-        .status(400)
-        .json({ error: `Missing ${key} in notifications.` });
-    }
-
-    if (
-      typeof notifications[key].email !== "boolean" ||
-      typeof notifications[key].push !== "boolean"
-    ) {
-      return res.status(400).json({ error: `Invalid values for ${key}.` });
-    }
+  if (error) {
+    return res.status(400).json({ error });
   }
 
   return next();
 };
+
+function requireSelfUserAccess(req, res) {
+  if (req.user.id !== req.params.userId) {
+    res.status(403).json({ error: "You can only modify your own account." });
+    return false;
+  }
+
+  return true;
+}
+
+function rejectDisallowedFields(res, body, allowedFields) {
+  const disallowedFields = findDisallowedFields(body, allowedFields);
+
+  if (disallowedFields.length > 0) {
+    res.status(400).json({
+      error: `Disallowed fields: ${disallowedFields.join(", ")}`,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+function sanitizeUser(user) {
+  if (!user || typeof user.toObject !== "function") {
+    return user;
+  }
+
+  const userObject = user.toObject();
+  const { password, ...userWithoutPassword } = userObject;
+  return userWithoutPassword;
+}
+
+function isLegacyInviteToken(value) {
+  return typeof value === "string" && /^[a-f0-9]{32}$/i.test(value);
+}
+
+function validateUserProfileUpdate(updateFields) {
+  if (
+    Object.prototype.hasOwnProperty.call(updateFields, "fullName") &&
+    (typeof updateFields.fullName !== "string" || updateFields.fullName.trim().length < 1)
+  ) {
+    return "fullName must be a non-empty string.";
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(updateFields, "image") &&
+    updateFields.image !== null &&
+    typeof updateFields.image !== "string"
+  ) {
+    return "image must be a string or null.";
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(updateFields, "notifications")
+  ) {
+    return validateNotificationsPayload(updateFields.notifications);
+  }
+
+  return null;
+}
+
+function validateBreweryProfileUpdate(updateFields) {
+  if (
+    Object.prototype.hasOwnProperty.call(updateFields, "companyName") &&
+    (typeof updateFields.companyName !== "string" ||
+      updateFields.companyName.trim().length < 1)
+  ) {
+    return "Company Name is required.";
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(updateFields, "image") &&
+    updateFields.image !== null &&
+    typeof updateFields.image !== "string"
+  ) {
+    return "image must be a string or null.";
+  }
+
+  return null;
+}
 
 mongoose.set("strictQuery", true); // handles undefined paths
 
@@ -74,8 +169,6 @@ const { SES } = require("@aws-sdk/client-ses");
 const ses = new SES({ apiVersion: "2010-12-01", region: "us-west-2" });
 
 const { check, validationResult } = require("express-validator");
-
-const crypto = require("crypto"); // Generate a random token for invite record
 
 // Refer to models named in models.js
 const Users = Models.User;
@@ -156,6 +249,14 @@ const BEER_FLOW_APP_URL = (
 
 const MAIL_FROM_INVITE = '"Brett" <no-reply@brett.com>';
 const MAIL_FROM_NOTIFICATION = '"Beer Flow" <no-reply@beer-flow.vercel.app>';
+const inviteService = createInviteService({
+  Breweries,
+  Invites,
+  Users,
+  frontendBaseUrl: BEER_FLOW_APP_URL,
+  inviteFrom: MAIL_FROM_INVITE,
+  sendMail: sendGmailMail,
+});
 
 const buildBeerLink = (breweryId, beerId) => {
   if (!breweryId || !beerId) {
@@ -292,57 +393,19 @@ async function sendBeerLifecycleNotification({
  */
 app.post("/breweries/:breweryId/invite", verifyJWT, async (req, res) => {
   try {
-    const breweryId = req.params.breweryId;
-    const { email, isAdmin } = req.body; // email of the user to be invited
-
-    // Fetch the brewery from the database
-    const brewery = await Breweries.findById(breweryId)
-      .populate("owner")
-      .populate("staff");
-    if (!brewery) {
-      return res.status(404).json({ message: "Brewery not found." });
-    }
-
-    // check if invitee is already a staff member
-    if (brewery.staff.some((staffMember) => staffMember.email === email)) {
-      return res.status(400).json({
-        message: `${email} is already a staff member of ${brewery.companyName}.`,
-      });
-    }
-
-    // Generate a random token and create an invite record in the database
-    const token = crypto.randomBytes(16).toString("hex");
-
-    // Send email here
-    const inviteUrl = `https://beer-flow.vercel.app/accept-invite?token=${token}`;
-
-    // `http://localhost:3000/accept-invite?token=${token}`
-
-    // send mail with defined transport object
-    let info = await sendGmailMail({
-      from: MAIL_FROM_INVITE, // sender address
-      to: email, // list of receivers
-      subject: `Join ${brewery.companyName} on Brett!`, // Subject line
-      text: `You've been invited to join ${brewery.companyName}! Accept Invite! ${inviteUrl}`, // plain text body
-      html: `<h3>You've been invited!</h3> 
-      <p><strong>${brewery.companyName}</strong> wants you to join their team on Brett!</p>
-      <a href="${inviteUrl}" style="display: inline-block; font-weight: 400; color: #fff; text-align: center; vertical-align: middle; cursor: pointer; background-color: #007bff; border: 1px solid transparent; padding: .375rem .75rem; font-size: 1rem; line-height: 1.5; border-radius: .25rem; transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out; text-decoration: none;">Join The Crew!</a>`, // html body
+    const result = await inviteService.createInvitation({
+      breweryId: req.params.breweryId,
+      authUserId: req.user.id,
+      email: req.body.email,
+      isAdmin: req.body.isAdmin,
     });
 
-    console.log("Message sent: %s", info.messageId);
-
-    const invite = await new Invites({
-      token,
-      brewery: breweryId,
-      sender: req.user.id,
-      isAdmin: isAdmin,
-    }).save();
-
-    res
-      .status(200)
-      .json({ message: `Invitation sent to ${email}`, email: email });
+    res.status(200).json({ message: result.message, email: result.email });
   } catch (error) {
     console.error("Error in sending invitation:", error);
+    if (error instanceof ServiceError) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     handleError(res, error);
   }
 });
@@ -375,7 +438,17 @@ app.post(
     }
     // check if user already exists
     try {
-      const existingUser = await Users.findOne({ email: req.body.email });
+      const normalizedEmail = normalizeEmail(req.body.email);
+
+      if (!normalizedEmail) {
+        return res.status(400).json({
+          error: "Email does not appear to be valid.",
+        });
+      }
+
+      const existingUser = await Users.findOne({
+        email: buildCaseInsensitiveEmailFilter(normalizedEmail),
+      });
       // If user exists and was created with OAuth (no password)
       if (existingUser && !existingUser.password) {
         return res.status(403).json({
@@ -387,14 +460,14 @@ app.post(
       // If user exists and already has password (was created with credentials)
       if (existingUser) {
         return res.status(400).json({
-          error: `An account with ${email} already exists.`,
+          error: `An account with ${normalizedEmail} already exists.`,
         });
       }
 
       let hashedPassword = Users.hashPassword(req.body.password);
       const newUser = new Users({
         fullName: req.body.fullName,
-        email: req.body.email,
+        email: normalizedEmail,
         password: hashedPassword,
         breweries: [],
         image: req.body.image || null,
@@ -439,7 +512,15 @@ app.post(
     }
 
     try {
-      const existingUser = await Users.findOne({ email: req.body.email });
+      const normalizedEmail = normalizeEmail(req.body.email);
+
+      if (!normalizedEmail) {
+        return res.status(400).json({ error: "Invalid email or password." });
+      }
+
+      const existingUser = await Users.findOne({
+        email: buildCaseInsensitiveEmailFilter(normalizedEmail),
+      });
 
       // If no user, or user exists but has no password (OAuth account)
       if (!existingUser) {
@@ -459,10 +540,7 @@ app.post(
         return res.status(400).json({ error: "Invalid email or password." });
       }
 
-      const userObject = existingUser.toObject();
-      const { password, ...userWithoutPassword } = userObject;
-
-      res.status(200).json(userWithoutPassword);
+      res.status(200).json(sanitizeUser(existingUser));
     } catch (error) {
       handleError(res, error);
     }
@@ -480,11 +558,15 @@ app.post("/users/oauth", async (req, res) => {
   try {
     const { name, email } = req.body;
 
-    if (!email) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail) {
       return res.status(400).json({ error: "Email is required." });
     }
 
-    let user = await Users.findOne({ email });
+    let user = await Users.findOne({
+      email: buildCaseInsensitiveEmailFilter(normalizedEmail),
+    });
 
     // If user exists and is credentials-based
     if (user && user.password) {
@@ -498,7 +580,7 @@ app.post("/users/oauth", async (req, res) => {
     if (!user) {
       user = new Users({
         fullName: name,
-        email,
+        email: normalizedEmail,
         breweries: [],
         notifications: {
           allow: true,
@@ -682,16 +764,37 @@ app.post(
     }
 
     try {
-      // .populates makes sure we have full objects, not just id
-      const brewery = await Breweries.findById(req.params.breweryId).populate(
-        "categories"
+      const breweryIdError = validateObjectId(
+        req.params.breweryId,
+        "Invalid brewery ID format."
       );
-      if (!brewery) {
-        return res.status(400).send("Brewery not found");
+
+      if (breweryIdError) {
+        return res.status(400).json({ error: breweryIdError });
       }
 
+      const authorizedBrewery = await Breweries.findOne(
+        buildOwnerAdminBreweryFilter({
+          breweryId: req.params.breweryId,
+          authUserId: req.user.id,
+        })
+      ).populate("categories");
+
+      if (!authorizedBrewery) {
+        const breweryExists = await Breweries.exists({ _id: req.params.breweryId });
+
+        if (!breweryExists) {
+          return res.status(400).send("Brewery not found");
+        }
+
+        return res
+          .status(403)
+          .send("Only admin or owner can create a category");
+      }
+
+      // .populates makes sure we have full objects, not just id
       // Check if category already exists
-      const existingCategory = brewery.categories.find(
+      const existingCategory = authorizedBrewery.categories.find(
         (category) => category.name === req.body.name
       );
       if (existingCategory) {
@@ -708,8 +811,8 @@ app.post(
       const savedCategory = await category.save();
 
       if (savedCategory) {
-        brewery.categories.push(savedCategory._id);
-        await brewery.save();
+        authorizedBrewery.categories.push(savedCategory._id);
+        await authorizedBrewery.save();
         res.status(201).json(savedCategory);
       } else {
         throw new Error("Category save operation failed");
@@ -770,56 +873,58 @@ app.post("/users/breweries", verifyJWT, async (req, res) => {
 // GET REQUEST ******************
 
 /**
- * GET: Accepting invitation. Adds brewery to users breweries and user to breweries staff;
- * Request: Bearer token from logged in user in header, token from URL param
+ * POST: Accepting invitation. Adds brewery to users breweries and user to breweries staff.
+ * Request: Bearer token from logged in user in header, JSON body with invite token.
  * @returns Invitation accepted message
  */
-app.get("/accept-invite", verifyJWT, async (req, res) => {
+app.get("/accept-invite", verifyJWT, (req, res) => {
+  const { token } = req.query;
+
+  if (typeof token !== "string" || token.length === 0) {
+    return res.status(400).json({ message: "Invite token query is required." });
+  }
+
+  if (!isLegacyInviteToken(token)) {
+    return res.status(400).json({ message: "Malformed legacy invite token." });
+  }
+
+  return res.status(410).json({
+    message:
+      "This legacy invite was revoked by the security upgrade. Ask the brewery manager to resend your invite.",
+  });
+});
+
+app.post("/accept-invite", verifyJWT, async (req, res) => {
   try {
-    const { token } = req.query;
+    const result = await inviteService.acceptInvitation({
+      authUserId: req.user.id,
+      token: req.body.token,
+    });
 
-    const invite = await Invites.findOne({ token });
+    res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof ServiceError) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    handleError(res, error);
+  }
+});
 
-    if (!invite) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired invite token." });
+app.get("/users/me", verifyJWT, async (req, res) => {
+  try {
+    const authUserId = req.user && req.user.id;
+
+    if (!mongoose.isValidObjectId(authUserId)) {
+      return res.status(400).json({ error: "Invalid authenticated user ID." });
     }
 
-    // Add the user to the brewery's staff list and vice versa
-    const brewery = await Breweries.findById(invite.brewery);
+    const user = await Users.findById(authUserId);
 
-    const user = await Users.findById(req.user.id);
-
-    if (!brewery || !user) {
-      return res.status(400).json({ message: `User or Brewery don't exists!` });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
 
-    // Check if the user is already an owner, admin, or staff
-    if (
-      brewery.owner.toString() === req.user.id ||
-      brewery.admin.includes(req.user.id) ||
-      brewery.staff.includes(req.user.id)
-    ) {
-      return res.status(400).json({
-        message: `You are already apart of the ${brewery.companyName} brewery`,
-      });
-    }
-
-    brewery.staff.push(req.user.id);
-    if (invite.isAdmin) {
-      // check if user is an admin
-      brewery.admin.push(req.user.id); // add user to admins
-    }
-    await brewery.save();
-
-    user.breweries.push(brewery._id);
-    await user.save();
-
-    // Delete the invite from the database
-    await invite.remove();
-
-    res.status(200).json({ message: "Invitation accepted.", brewery: brewery });
+    return res.status(200).json(sanitizeUser(user));
   } catch (error) {
     handleError(res, error);
   }
@@ -901,7 +1006,8 @@ app.get("/breweries/:breweryId/beers/:beerId", verifyJWT, async (req, res) => {
 //  Created POST request to handle array of brewery ids
 /**
  * GET: Returns data on a single brewery (brewery object)
- * by brewery id only if user is apart of staff array.
+ * by brewery id only when the caller matches brewery owner/admin/staff membership.
+ * This is a read-membership check, not separate admin authorization.
  * Request body: Bearer token
  * @param brewery
  * @returns brewery object
@@ -1001,27 +1107,32 @@ app.get("/categories", verifyJWT, (req, res) => {
  */
 app.put(
   "/users/:userId",
-
-  // Validation logic
   verifyJWT,
-
   async (req, res) => {
     try {
+      if (!requireSelfUserAccess(req, res)) {
+        return;
+      }
+
+      const allowedFields = ["fullName", "image", "notifications"];
+      if (rejectDisallowedFields(res, req.body, allowedFields)) {
+        return;
+      }
+
       const userId = req.params.userId;
-      const updateFields = {
-        fullName: req.body.fullName,
-        email: req.body.email,
-        breweries: req.body.breweries,
-        image: req.body.image,
-        notifications: req.body.notifications,
-      };
+      const updateFields = pickAllowedFields(req.body, allowedFields);
+      const validationError = validateUserProfileUpdate(updateFields);
+
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
+      }
 
       const existingUser = await Users.findByIdAndUpdate(userId, updateFields, {
         new: true,
       });
 
       if (!existingUser) {
-        return res.status(400).send("User not found.");
+        return res.status(404).send("User not found.");
       }
 
       res.status(200).json({ existingUser });
@@ -1042,6 +1153,14 @@ app.put(
   [verifyJWT, validateNotifications],
   async (req, res) => {
     try {
+      if (!requireSelfUserAccess(req, res)) {
+        return;
+      }
+
+      if (rejectDisallowedFields(res, req.body, ["notifications"])) {
+        return;
+      }
+
       const userId = req.params.userId;
       const { notifications } = req.body;
 
@@ -1097,12 +1216,66 @@ app.put(
     try {
       const beerId = req.params.beerId;
       const breweryId = req.params.breweryId;
+      const authUserId = req.user.id;
+      const breweryIdError = validateObjectId(
+        breweryId,
+        "Invalid brewery ID format."
+      );
+      const beerIdError = validateObjectId(beerId, "Invalid beer ID format.");
+      const categoryIdsError = validateOptionalObjectIdArray(
+        req.body.category,
+        "category must be a non-empty array of valid category IDs."
+      );
 
-      const beer = await Beers.findById(beerId);
-      if (!beer || beer.companyId.toString() !== breweryId) {
+      if (breweryIdError || beerIdError || categoryIdsError) {
+        return res.status(400).json({
+          error: breweryIdError || beerIdError || categoryIdsError,
+        });
+      }
+
+      const brewery = await Breweries.findOne(
+        buildOwnerAdminBreweryFilter({
+          breweryId,
+          authUserId,
+        })
+      );
+
+      if (!brewery) {
+        const existingBrewery = await Breweries.exists({ _id: breweryId });
+
+        if (!existingBrewery) {
+          return res
+            .status(400)
+            .send("Beer not found or does not belong to this brewery");
+        }
+
+        return res
+          .status(403)
+          .send("Only the owner or an admin can update this beer");
+      }
+
+      const beer = await Beers.findOne(
+        buildBeerWithinBreweryFilter({ breweryId, beerId })
+      );
+      if (!beer) {
         return res
           .status(400)
           .send("Beer not found or does not belong to this brewery");
+      }
+
+      if (typeof req.body.category !== "undefined") {
+        if (!breweryHasCategories(brewery, req.body.category)) {
+          return res.status(400).send("Category does not belong to this brewery");
+        }
+
+        const uniqueCategoryIds = [...new Set(req.body.category.map(String))];
+        const validCategoryCount = await Categories.countDocuments({
+          _id: { $in: uniqueCategoryIds },
+        });
+
+        if (validCategoryCount !== uniqueCategoryIds.length) {
+          return res.status(400).send("One or more category IDs are invalid");
+        }
       }
 
       const updateFields = {
@@ -1124,9 +1297,13 @@ app.put(
       };
 
       // updates by id and only fields that have changed
-      const existingBeer = await Beers.findByIdAndUpdate(beerId, updateFields, {
-        new: true,
-      });
+      const existingBeer = await Beers.findOneAndUpdate(
+        buildBeerWithinBreweryFilter({ breweryId, beerId }),
+        updateFields,
+        {
+          new: true,
+        }
+      );
 
       if (!existingBeer) {
         return res.status(400).send("Beer not found");
@@ -1176,31 +1353,73 @@ app.put(
     try {
       const beerId = req.params.beerId;
       const breweryId = req.params.breweryId;
+      const authUserId = req.user.id;
+      const categoryIds = req.body.category;
 
-      const beer = await Beers.findById(beerId);
-      if (!beer || beer.companyId.toString() !== breweryId) {
+      const breweryIdError = validateObjectId(
+        breweryId,
+        "Invalid brewery ID format."
+      );
+      const beerIdError = validateObjectId(beerId, "Invalid beer ID format.");
+      const categoryIdsError = validateObjectIdArray(
+        categoryIds,
+        "category must be a non-empty array of valid category IDs."
+      );
+
+      if (breweryIdError || beerIdError || categoryIdsError) {
+        return res.status(400).json({
+          error: breweryIdError || beerIdError || categoryIdsError,
+        });
+      }
+
+      const brewery = await Breweries.findOne(
+        buildOwnerAdminBreweryFilter({
+          breweryId,
+          authUserId,
+        })
+      );
+
+      if (!brewery) {
+        const existingBrewery = await Breweries.exists({ _id: breweryId });
+
+        if (!existingBrewery) {
+          return res
+            .status(400)
+            .send("Beer not found or does not belong to this brewery");
+        }
+
+        return res
+          .status(403)
+          .send("Only the owner or an admin can update this beer");
+      }
+
+      const beer = await Beers.findOne(
+        buildBeerWithinBreweryFilter({ breweryId, beerId })
+      );
+      if (!beer) {
         return res
           .status(400)
           .send("Beer not found or does not belong to this brewery");
       }
 
-      // Ensure the categories are valid
-      const categories = req.body.category;
-      for (const categoryId of categories) {
-        const category = await Categories.findById(categoryId);
-        if (!category) {
-          return res.status(400).send("Invalid category ID: " + categoryId);
-        }
+      if (!breweryHasCategories(brewery, categoryIds)) {
+        return res.status(400).send("Category does not belong to this brewery");
       }
 
-      // Update only the category field
-      const updateFields = {
-        category: categories,
-      };
+      const uniqueCategoryIds = [...new Set(categoryIds.map(String))];
+      const validCategoryCount = await Categories.countDocuments({
+        _id: { $in: uniqueCategoryIds },
+      });
 
-      const existingBeer = await Beers.findByIdAndUpdate(beerId, updateFields, {
-        new: true,
-      }).populate("category");
+      if (validCategoryCount !== uniqueCategoryIds.length) {
+        return res.status(400).send("One or more category IDs are invalid");
+      }
+
+      const existingBeer = await Beers.findOneAndUpdate(
+        buildBeerWithinBreweryFilter({ breweryId, beerId }),
+        { category: categoryIds },
+        { new: true }
+      ).populate("category");
 
       if (!existingBeer) {
         return res.status(400).send("Beer not found");
@@ -1234,9 +1453,42 @@ app.put(
     }
 
     try {
-      // Find the category by id and update
+      const categoryId = req.params.categoryId;
+      const categoryIdError = validateObjectId(
+        categoryId,
+        "Invalid category ID format."
+      );
+
+      if (categoryIdError) {
+        return res.status(400).json({ error: categoryIdError });
+      }
+
+      const brewery = await Breweries.findOne(
+        buildContainingBreweryCategoryFilter({
+          categoryId,
+          authUserId: req.user.id,
+        })
+      );
+
+      if (!brewery) {
+        const existingCategory = await Categories.exists({ _id: categoryId });
+
+        if (!existingCategory) {
+          return res.status(400).send("Category not found");
+        }
+
+        const containingBrewery = await Breweries.exists({ categories: categoryId });
+        if (!containingBrewery) {
+          return res.status(400).send("Category does not belong to a brewery");
+        }
+
+        return res
+          .status(403)
+          .json({ error: "Only the owner or an admin can update this category." });
+      }
+
       const updatedCategory = await Categories.findByIdAndUpdate(
-        req.params.categoryId,
+        categoryId,
         { name: req.body.name },
         { new: true }
       );
@@ -1261,40 +1513,53 @@ app.put(
  */
 app.put(
   "/breweries/:breweryId",
-  [
-    // Validation logic
-    verifyJWT,
-    // Minimum value of 1 character is required
-    check("companyName", "Company Name is required").isLength({ min: 1 }),
-  ],
+  [verifyJWT],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json({ errors: errors.array() });
-    }
-
     try {
       const breweryId = req.params.breweryId;
-      const updateFields = {
-        companyName: req.body.companyName,
-        admin: req.body.admin,
-        staff: req.body.staff,
-        beers: req.body.beers,
-        categories: req.body.categories,
-        image: req.body.image,
-      };
+      const breweryIdError = validateObjectId(
+        breweryId,
+        "Invalid brewery ID format."
+      );
 
-      const existingBrewery = await Breweries.findById(breweryId);
-
-      if (!existingBrewery) {
-        return res.status(400).json({ error: "Brewery not found" });
+      if (breweryIdError) {
+        return res.status(400).json({ error: breweryIdError });
       }
 
-      const updatedBrewery = await Breweries.findByIdAndUpdate(
-        breweryId,
-        updateFields,
+      if (rejectDisallowedFields(res, req.body, BREWERY_PROFILE_ALLOWED_FIELDS)) {
+        return;
+      }
+
+      const updateFields = pickAllowedFields(
+        req.body,
+        BREWERY_PROFILE_ALLOWED_FIELDS
+      );
+      const validationError = validateBreweryProfileUpdate(updateFields);
+
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
+      }
+
+      const updatedBrewery = await Breweries.findOneAndUpdate(
+        buildOwnerAdminBreweryFilter({
+          breweryId,
+          authUserId: req.user.id,
+        }),
+        { $set: updateFields },
         { new: true }
       );
+
+      if (!updatedBrewery) {
+        const existingBrewery = await Breweries.exists({ _id: breweryId });
+
+        if (!existingBrewery) {
+          return res.status(404).json({ error: "Brewery not found" });
+        }
+
+        return res.status(403).json({
+          error: "Only the owner or an admin can update this brewery.",
+        });
+      }
 
       res.status(200).json(updatedBrewery);
     } catch (error) {
@@ -1369,8 +1634,27 @@ app.put(
 
 app.patch("/users/:userId", verifyJWT, async (req, res) => {
   try {
+    if (!requireSelfUserAccess(req, res)) {
+      return;
+    }
+
     const userId = req.params.userId;
-    const updatedFields = req.body;
+    const userIdError = validateObjectId(userId, "Invalid user ID format.");
+
+    if (userIdError) {
+      return res.status(400).json({ error: userIdError });
+    }
+
+    if (rejectDisallowedFields(res, req.body, USER_PROFILE_ALLOWED_FIELDS)) {
+      return;
+    }
+
+    const updatedFields = pickAllowedFields(req.body, USER_PROFILE_ALLOWED_FIELDS);
+    const validationError = validateUserProfileUpdate(updatedFields);
+
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
 
     const existingUser = await Users.findByIdAndUpdate(
       userId,
@@ -1405,17 +1689,41 @@ app.patch(
       const userId = req.params.userId;
       const action = req.body.action; // Either 'add' or 'remove'
       const authUser = req.user.id;
+      const breweryIdError = validateObjectId(
+        breweryId,
+        "Invalid brewery ID format."
+      );
+      const userIdError = validateObjectId(userId, "Invalid user ID format.");
+
+      if (breweryIdError || userIdError) {
+        return res.status(400).json({ error: breweryIdError || userIdError });
+      }
+
       const brewery = await Breweries.findById(breweryId);
       const user = await Users.findById(userId);
 
       // Check if brewery and user exist
       if (!brewery) {
-        return res.status(400).json({ error: "Brewery not found" });
+        return res.status(404).json({ error: "Brewery not found" });
+      }
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
       }
 
       if (action === "add") {
-        const updatedBrewery = await Breweries.findByIdAndUpdate(
-          breweryId,
+        ensureAdminGrantPreconditions({
+          brewery,
+          authUserId: authUser,
+          targetUser: user,
+        });
+
+        const updatedBrewery = await Breweries.findOneAndUpdate(
+          buildAdminGrantFilter({
+            breweryId,
+            authUserId: authUser,
+            targetUserId: userId,
+          }),
           {
             $addToSet: { admin: userId },
           },
@@ -1425,6 +1733,14 @@ app.patch(
           .populate("owner")
           .populate("staff")
           .populate("categories");
+
+        if (!updatedBrewery) {
+          return res.status(409).json({
+            error:
+              "Admin grant could not be completed because the caller or target membership changed.",
+          });
+        }
+
         return res.status(200).json({
           message: `${user.fullName} successfully added to admin`,
           brewery: updatedBrewery,
@@ -1439,20 +1755,31 @@ app.patch(
 
         // Check if authUser is the owner or another admin
         if (
-          authUser.toString() !== brewery.owner.toString() &&
-          !brewery.admin.includes(authUser)
+          !canManageBreweryInvites(brewery, authUser)
         ) {
-          return res.status(400).json({
+          return res.status(403).json({
             error: "Only the owner or another admin can remove an admin",
           });
         }
-        const updatedBrewery = await Breweries.findByIdAndUpdate(
-          breweryId,
+        const updatedBrewery = await Breweries.findOneAndUpdate(
+          buildAdminRevokeFilter({
+            breweryId,
+            authUserId: authUser,
+            targetUserId: userId,
+          }),
           {
             $pull: { admin: userId },
           },
           { new: true }
         );
+
+        if (!updatedBrewery) {
+          return res.status(409).json({
+            error:
+              "Admin removal could not be completed because the caller or target membership changed.",
+          });
+        }
+
         return res.status(200).json({
           message: `${user.fullName} has been removed from admin`,
           brewery: updatedBrewery,
@@ -1461,6 +1788,9 @@ app.patch(
         return res.status(400).json({ error: "Invalid action" });
       }
     } catch (error) {
+      if (error instanceof ServiceError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
       handleError(res, error);
     }
   }
@@ -1627,7 +1957,7 @@ app.delete(
       // Check if authUser is the owner or another admin
       if (
         authUser.toString() !== brewery.owner.toString() &&
-        !brewery.admin.includes(authUser)
+        !arrayHasObjectId(brewery.admin, authUser)
       ) {
         return res.status(400).json({
           error: "Only the owner or another admin can delete a category",
@@ -1652,7 +1982,7 @@ app.delete(
       });
 
       if (!category) {
-        return res.status(400).send(`${category.name} category was not found.`);
+        return res.status(400).send("Category was not found.");
       }
 
       // If the category exists in the brewery's categories array, remove it
@@ -1779,49 +2109,59 @@ app.delete(
   async (req, res) => {
     const { userId, breweryId } = req.params;
 
+    if (!requireSelfUserAccess(req, res)) {
+      return;
+    }
+
     // Start a new session for the transaction
     const session = await mongoose.startSession();
-    session.startTransaction();
 
     try {
-      // Attempt to update the user's breweries array
-      const userUpdate = await Users.findByIdAndUpdate(
-        userId,
-        {
-          $pull: { breweries: breweryId },
-        },
-        { new: true, session }
-      ); // Include the session in the query to make it part of the transaction
+      await session.withTransaction(async () => {
+        const user = await Users.findById(userId).session(session);
+        if (!user) {
+          throw new ServiceError("User not found.", 404);
+        }
 
-      // Check if the user update was successful
-      if (!userUpdate) {
-        throw new Error("User not found or update failed");
-      }
+        const brewery = await Breweries.findById(breweryId).session(session);
+        if (!brewery) {
+          throw new ServiceError("Brewery not found.", 404);
+        }
 
-      // Attempt to update the brewery's staff and admin arrays
-      const breweryUpdate = await Breweries.findByIdAndUpdate(
-        breweryId,
-        {
-          $pull: { staff: userId, admin: userId },
-        },
-        { new: true, session }
-      ); // Include the session in the query
+        if (brewery.owner.toString() === userId) {
+          throw new ServiceError(
+            "Owners cannot remove their brewery membership this way.",
+            400
+          );
+        }
 
-      // Check if the brewery update was successful
-      if (!breweryUpdate) {
-        throw new Error("Brewery not found or update failed");
-      }
+        if (
+          !arrayHasObjectId(brewery.staff, userId) &&
+          !arrayHasObjectId(brewery.admin, userId)
+        ) {
+          throw new ServiceError("User is not a member of this brewery.", 404);
+        }
 
-      // If both updates were successful, commit the transaction
-      await session.commitTransaction();
+        await Users.updateOne(
+          { _id: userId },
+          { $pull: { breweries: breweryId } },
+          { session }
+        );
+
+        await Breweries.updateOne(
+          { _id: breweryId },
+          { $pull: { staff: userId, admin: userId } },
+          { session }
+        );
+      });
 
       return res.status(200).json({
         message: "Brewery successfully removed from your breweries",
       });
     } catch (error) {
-      // If there was an error, abort the transaction
-      await session.abortTransaction();
-
+      if (error instanceof ServiceError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
       handleError(res, error);
     } finally {
       // End the session

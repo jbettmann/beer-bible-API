@@ -6,10 +6,12 @@ const {
   buildAdminGrantFilter,
   buildAdminRevokeFilter,
   buildInviteUrl,
+  createInviteEmailContent,
   createInviteService,
   ensureAdminGrantPreconditions,
   isDuplicateKeyError,
   normalizeEmail,
+  wasRecipientAccepted,
   validateInviteToken,
 } = require("../inviteService.js");
 
@@ -79,6 +81,17 @@ test("buildInviteUrl uses encoded token and safe fallback origin", () => {
   );
 });
 
+test("invite email uses product branding and escapes brewery HTML", () => {
+  const content = createInviteEmailContent({
+    breweryName: "<Brew & Co>",
+    inviteUrl: "https://frontend.example/invite/token",
+  });
+  assert.match(content.subject, /Beer Flow/);
+  assert.doesNotMatch(content.subject, /Brett/);
+  assert.match(content.html, /&lt;Brew &amp; Co&gt;/);
+  assert.doesNotMatch(content.html, /<Brew & Co>/);
+});
+
 test("validateInviteToken requires the expected random token format", () => {
   assert.equal(validateInviteToken("f".repeat(64)), true);
   assert.equal(validateInviteToken("short"), false);
@@ -90,6 +103,28 @@ test("isDuplicateKeyError detects Mongo duplicate-key responses", () => {
   assert.equal(isDuplicateKeyError({ code: 11000 }), true);
   assert.equal(isDuplicateKeyError({ code: 11001 }), true);
   assert.equal(isDuplicateKeyError({ code: 42 }), false);
+});
+
+test("wasRecipientAccepted requires confirmation for the intended recipient", () => {
+  assert.equal(
+    wasRecipientAccepted({ accepted: ["User@Example.com"] }, "user@example.com"),
+    true
+  );
+  assert.equal(
+    wasRecipientAccepted(
+      { accepted: [], rejected: ["user@example.com"] },
+      "user@example.com"
+    ),
+    false
+  );
+  assert.equal(wasRecipientAccepted(undefined, "user@example.com"), false);
+  assert.equal(
+    wasRecipientAccepted(
+      { accepted: [{ name: "User", address: "User@Example.com" }] },
+      "user@example.com"
+    ),
+    true
+  );
 });
 
 test("createInvitation rejects an invalid breweryId before brewery lookup", async () => {
@@ -247,7 +282,7 @@ test("createInvitation rejects duplicate active invites for the same brewery ema
   );
 });
 
-test("createInvitation persists normalized email and removes invite if email delivery fails", async () => {
+test("createInvitation persists normalized email and removes invite if provider rejects delivery", async () => {
   const state = {
     savedInvite: null,
     deleteFilter: null,
@@ -289,9 +324,7 @@ test("createInvitation persists normalized email and removes invite if email del
     Users: { findOne: async () => null },
     frontendBaseUrl: "https://frontend.example/app",
     inviteFrom: "test@example.com",
-    sendMail: async () => {
-      throw new Error("smtp down");
-    },
+    sendMail: async () => ({ accepted: [], rejected: ["user@example.com"] }),
     tokenGenerator: () => "a".repeat(64),
   });
 
@@ -311,6 +344,121 @@ test("createInvitation persists normalized email and removes invite if email del
   assert.equal(state.savedInvite.recipientEmail, "user@example.com");
   assert.equal(state.savedInvite.token, "a".repeat(64));
   assert.deepEqual(state.deleteFilter, { _id: "invite-1" });
+});
+
+test("createInvitation keeps a generic 502 and logs sanitized delivery metadata", async () => {
+  let loggedFailure;
+  class FakeInviteModel {
+    constructor(doc) {
+      Object.assign(this, doc, { _id: "invite-1" });
+    }
+    async save() {
+      return this;
+    }
+    static async findOne() {
+      return null;
+    }
+    static async deleteOne(filter) {
+      if (filter._id) throw new Error("cleanup leaked detail");
+      return { deletedCount: 0 };
+    }
+  }
+
+  const service = createInviteService({
+    Breweries: {
+      findById: () =>
+        createQuery({
+          _id: "507f1f77bcf86cd799439011",
+          companyName: "Brewery",
+          owner: "507f1f77bcf86cd799439012",
+          admin: [],
+          staff: [],
+        }),
+    },
+    Invites: FakeInviteModel,
+    Users: { findOne: async () => null },
+    inviteFrom: "sender@example.com",
+    logDeliveryFailure: (details) => {
+      loggedFailure = details;
+    },
+    sendMail: async () => {
+      throw new Error("provider leaked detail");
+    },
+    tokenGenerator: () => "b".repeat(64),
+  });
+
+  await assert.rejects(
+    service.createInvitation({
+      breweryId: "507f1f77bcf86cd799439011",
+      authUserId: "507f1f77bcf86cd799439012",
+      email: "user@example.com",
+      isAdmin: false,
+    }),
+    (error) =>
+      error instanceof ServiceError &&
+      error.statusCode === 502 &&
+      error.message === "Failed to deliver invite email. Please try again later."
+  );
+  assert.deepEqual(loggedFailure, {
+    cleanupFailed: true,
+    providerCode: undefined,
+    providerResponseCode: undefined,
+  });
+  assert.equal(JSON.stringify(loggedFailure).includes("provider leaked detail"), false);
+});
+
+test("createInvitation returns success only after provider acceptance", async () => {
+  let sentMessage;
+  class FakeInviteModel {
+    constructor(doc) {
+      Object.assign(this, doc, { _id: "invite-1" });
+    }
+    async save() {
+      return this;
+    }
+    static async findOne() {
+      return null;
+    }
+    static async deleteOne() {
+      return { deletedCount: 0 };
+    }
+  }
+
+  const from = { name: "Beer Flow", address: "sender@example.com" };
+  const service = createInviteService({
+    Breweries: {
+      findById: () =>
+        createQuery({
+          _id: "507f1f77bcf86cd799439011",
+          companyName: "Brewery",
+          owner: "507f1f77bcf86cd799439012",
+          admin: [],
+          staff: [],
+        }),
+    },
+    Invites: FakeInviteModel,
+    Users: { findOne: async () => null },
+    frontendBaseUrl: "https://frontend.example",
+    inviteFrom: from,
+    sendMail: async (message) => {
+      sentMessage = message;
+      return { accepted: [message.to], rejected: [] };
+    },
+    tokenGenerator: () => "c".repeat(64),
+  });
+
+  const result = await service.createInvitation({
+    breweryId: "507f1f77bcf86cd799439011",
+    authUserId: "507f1f77bcf86cd799439012",
+    email: " User@Example.com ",
+    isAdmin: false,
+  });
+
+  assert.equal(result.message, "Invitation sent to user@example.com");
+  assert.deepEqual(sentMessage.from, from);
+  assert.equal(sentMessage.to, "user@example.com");
+  assert.equal(result.message.includes("c".repeat(64)), false);
+  assert.equal(Object.hasOwn(result, "invite"), false);
 });
 
 test("createInvitation maps unique-index duplicate races to HTTP 409", async () => {

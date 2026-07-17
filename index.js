@@ -38,6 +38,7 @@ const {
   createInviteService,
   ensureAdminGrantPreconditions,
 } = require("./inviteService.js");
+const { assertGmailConfig, buildInviteSender } = require("./mailConfig.js");
 const {
   arrayHasObjectId,
   canManageBreweryInvites,
@@ -247,7 +248,10 @@ const BEER_FLOW_APP_URL = (
   process.env.BEER_FLOW_APP_URL || "https://beer-flow.vercel.app"
 ).replace(/\/$/, "");
 
-const MAIL_FROM_INVITE = '"Brett" <no-reply@brett.com>';
+// Gmail requires the authenticated mailbox (or a configured alias) as sender.
+const MAIL_FROM_INVITE = process.env.GMAIL_EMAIL
+  ? { name: "Beer Flow", address: process.env.GMAIL_EMAIL.trim() }
+  : undefined;
 const MAIL_FROM_NOTIFICATION = '"Beer Flow" <no-reply@beer-flow.vercel.app>';
 const inviteService = createInviteService({
   Breweries,
@@ -256,6 +260,9 @@ const inviteService = createInviteService({
   frontendBaseUrl: BEER_FLOW_APP_URL,
   inviteFrom: MAIL_FROM_INVITE,
   sendMail: sendGmailMail,
+  logDeliveryFailure: (details) => {
+    console.error("Invite email delivery failed", details);
+  },
 });
 
 const buildBeerLink = (breweryId, beerId) => {
@@ -267,6 +274,7 @@ const buildBeerLink = (breweryId, beerId) => {
 };
 
 async function createGmailTransporter() {
+  assertGmailConfig();
   const tokenInfo = await oauth2Client.getAccessToken();
   const accessToken = tokenInfo ? tokenInfo.token : null;
 
@@ -2225,6 +2233,8 @@ app.use((err, req, res, next) => {
 // process.env.PORT listens for pre-configured port number or, if not found, set port to pertain port number
 const port = process.env.PORT || 8080;
 if (require.main === module) {
+  // Fail before accepting traffic when production mail cannot be configured.
+  buildInviteSender();
   app.listen(port, "0.0.0.0", () => {
     console.log(`Listening on Port ${port}`);
   });
